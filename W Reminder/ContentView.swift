@@ -10,46 +10,111 @@ import SwiftData
 
 struct ContentView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query private var items: [Item]
+    @Query(sort: \Reminder.dueDate, order: .forward) private var reminders: [Reminder]
+
+    @State private var showingAddReminder = false
 
     var body: some View {
-        NavigationSplitView {
+        NavigationStack {
             List {
-                ForEach(items) { item in
-                    NavigationLink {
-                        Text("Item at \(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))")
-                    } label: {
-                        Text(item.timestamp, format: Date.FormatStyle(date: .numeric, time: .standard))
+                if reminders.isEmpty {
+                    Text("No reminders yet.\nTap + to add one.")
+                        .multilineTextAlignment(.center)
+                        .foregroundStyle(.secondary)
+                } else {
+                    ForEach(reminders) { reminder in
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text(reminder.title)
+                                .font(.headline)
+
+                            Text(reminder.dueDate, format: .dateTime
+                                .hour().minute().day().month().year())
+                                .font(.subheadline)
+                                .foregroundStyle(.secondary)
+
+                            if let notes = reminder.notes, !notes.isEmpty {
+                                Text(notes)
+                                    .font(.footnote)
+                                    .foregroundStyle(.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
                     }
+                    .onDelete(perform: deleteReminders)
                 }
-                .onDelete(perform: deleteItems)
             }
+            .navigationTitle("W Reminder")
             .toolbar {
-                ToolbarItem(placement: .navigationBarTrailing) {
+                ToolbarItem(placement: .topBarLeading) {
                     EditButton()
                 }
-                ToolbarItem {
-                    Button(action: addItem) {
-                        Label("Add Item", systemImage: "plus")
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        showingAddReminder = true
+                    } label: {
+                        Image(systemName: "plus")
                     }
                 }
             }
-        } detail: {
-            Text("Select an item")
+            .sheet(isPresented: $showingAddReminder) {
+                AddReminderView { title, dueDate, notes in
+                    addReminder(title: title, dueDate: dueDate, notes: notes)
+                }
+            }
         }
     }
 
-    private func addItem() {
-        withAnimation {
-            let newItem = Item(timestamp: Date())
-            modelContext.insert(newItem)
-        }
+    private func addReminder(title: String, dueDate: Date, notes: String?) {
+        let newReminder = Reminder(title: title, dueDate: dueDate, notes: notes)
+        modelContext.insert(newReminder)
+        NotificationManager.shared.scheduleNotification(for: newReminder)
     }
 
-    private func deleteItems(offsets: IndexSet) {
+    private func deleteReminders(offsets: IndexSet) {
         withAnimation {
             for index in offsets {
-                modelContext.delete(items[index])
+                let reminder = reminders[index]
+                NotificationManager.shared.cancelNotification(for: reminder)
+                modelContext.delete(reminder)
+            }
+        }
+    }
+}
+
+struct AddReminderView: View {
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var title: String = ""
+    @State private var notes: String = ""
+    @State private var dueDate: Date = Date().addingTimeInterval(3600) // default 1h from now
+
+    var onSave: (String, Date, String?) -> Void
+
+    var body: some View {
+        NavigationStack {
+            Form {
+                Section(header: Text("Reminder")) {
+                    TextField("Title", text: $title)
+                    TextField("Notes (optional)", text: $notes, axis: .vertical)
+                        .lineLimit(1...4)
+
+                    DatePicker("Date & Time", selection: $dueDate)
+                }
+            }
+            .navigationTitle("New Reminder")
+            .toolbar {
+                ToolbarItem(placement: .cancellationAction) {
+                    Button("Cancel") { dismiss() }
+                }
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("Save") {
+                        guard !title.trimmingCharacters(in: .whitespaces).isEmpty else {
+                            return
+                        }
+                        onSave(title, dueDate, notes.isEmpty ? nil : notes)
+                        dismiss()
+                    }
+                }
             }
         }
     }
@@ -57,5 +122,5 @@ struct ContentView: View {
 
 #Preview {
     ContentView()
-        .modelContainer(for: Item.self, inMemory: true)
+        .modelContainer(for: Reminder.self, inMemory: true)
 }
