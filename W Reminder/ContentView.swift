@@ -17,6 +17,16 @@ struct MilestoneView: View {
     @State private var showingAddChecklist = false
     @State private var editingChecklist: Checklist?
     @State private var showPermissionAlert = false
+    @State private var sortOption: SortOption = .creation
+    @State private var filterCategory: Category? = nil // nil = all
+
+    enum SortOption: Identifiable, CaseIterable {
+        case creation
+        case earliestDue
+        case latestDue
+
+        var id: Self { self }
+    }
 
     let theme: Theme
 
@@ -37,11 +47,16 @@ struct MilestoneView: View {
                     header
 
                     let active = checklists.filter { !$0.isDone }
+                    let filteredActive = active.filter {
+                        guard let filterCategory else { return true }
+                        return $0.category == filterCategory.rawValue
+                    }
+                    let sortedActive = sort(filteredActive)
 
-                    if active.isEmpty {
+                    if sortedActive.isEmpty {
                         emptyState
                     } else {
-                        checklistList(active: active)
+                        checklistList(active: sortedActive)
                     }
 
                     Spacer()
@@ -51,11 +66,51 @@ struct MilestoneView: View {
             .navigationTitle("Milestones")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button {
-                        showingAddChecklist = true
-                    } label: {
-                        Image(systemName: "plus")
-                            .font(.headline)
+                    HStack {
+                        Menu {
+                            // Filter Section
+                            Section("Filter") {
+                                Button {
+                                    filterCategory = nil
+                                } label: {
+                                    if filterCategory == nil {
+                                        Label("All Categories", systemImage: "checkmark")
+                                    } else {
+                                        Text("All Categories")
+                                    }
+                                }
+                                ForEach(Category.allCases) { category in
+                                    Button {
+                                        filterCategory = category
+                                    } label: {
+                                        if filterCategory == category {
+                                            Label(category.rawValue, systemImage: "checkmark")
+                                        } else {
+                                            Text(category.rawValue)
+                                        }
+                                    }
+                                }
+                            }
+
+                            // Sort Section
+                            Section("Sort") {
+                                Picker("Sort By", selection: $sortOption) {
+                                    Label("Creation Date", systemImage: "clock").tag(SortOption.creation)
+                                    Label("Earliest Due", systemImage: "arrow.down").tag(SortOption.earliestDue)
+                                    Label("Latest Due", systemImage: "arrow.up").tag(SortOption.latestDue)
+                                }
+                            }
+                        } label: {
+                            Image(systemName: "line.3.horizontal.decrease.circle")
+                                .font(.headline)
+                        }
+
+                        Button {
+                            showingAddChecklist = true
+                        } label: {
+                            Image(systemName: "plus")
+                                .font(.headline)
+                        }
                     }
                 }
             }
@@ -63,7 +118,7 @@ struct MilestoneView: View {
                 AddChecklistView(
                     checklist: editingChecklist,
                     theme: theme
-                ) { title, notes, dueDate, remind, items, isDone in
+                ) { title, notes, dueDate, remind, items, isDone, category in
                     saveChecklist(
                         original: editingChecklist,
                         title: title,
@@ -71,7 +126,8 @@ struct MilestoneView: View {
                         dueDate: dueDate,
                         remind: remind,
                         items: items,
-                        isDone: isDone
+                        isDone: isDone,
+                        category: category
                     )
                 }
             }
@@ -99,7 +155,8 @@ struct MilestoneView: View {
         dueDate: Date?,
         remind: Bool,
         items: [ChecklistItem],
-        isDone: Bool
+        isDone: Bool,
+        category: Category?
     ) {
         let checklist: Checklist
         if let original {
@@ -109,12 +166,15 @@ struct MilestoneView: View {
             checklist.dueDate = dueDate
             checklist.remind = remind
             checklist.isDone = isDone
+            checklist.category = category?.rawValue
         } else {
             checklist = Checklist(
                 title: title,
                 notes: notes,
                 dueDate: dueDate,
-                remind: remind
+                remind: remind,
+                items: [],
+                category: category
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
@@ -194,6 +254,25 @@ struct MilestoneView: View {
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
     }
 
+    private func sort(_ checklists: [Checklist]) -> [Checklist] {
+        switch sortOption {
+        case .creation:
+            return checklists
+        case .earliestDue:
+            return checklists.sorted { lhs, rhs in
+                guard let lDate = lhs.dueDate else { return false }
+                guard let rDate = rhs.dueDate else { return true }
+                return lDate < rDate
+            }
+        case .latestDue:
+            return checklists.sorted { lhs, rhs in
+                guard let lDate = lhs.dueDate else { return false }
+                guard let rDate = rhs.dueDate else { return true }
+                return lDate > rDate
+            }
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 12) {
             Image(systemName: "bell.badge")
@@ -224,12 +303,14 @@ struct AddChecklistView: View {
     @State private var notes: String = ""
     @State private var dueDate: Date? = nil
     @State private var remind: Bool = true
+    @State private var isSettingDueDate: Bool = false
     @State private var items: [ChecklistItem] = [ChecklistItem(text: "New item")]
     @State private var isDone: Bool = false
+    @State private var selectedCategory: Category? = nil
 
     var checklist: Checklist?
     let theme: Theme
-    var onSave: (String, String?, Date?, Bool, [ChecklistItem], Bool) -> Void
+    var onSave: (String, String?, Date?, Bool, [ChecklistItem], Bool, Category?) -> Void
 
     var body: some View {
         NavigationStack {
@@ -238,20 +319,32 @@ struct AddChecklistView: View {
                     TextField("Title", text: $title)
                     TextField("Notes (optional)", text: $notes, axis: .vertical)
                         .lineLimit(1...4)
+                    
+                    Picker("Category", selection: $selectedCategory) {
+                        Text("None").tag(Category?.none)
+                        ForEach(Category.allCases) { category in
+                            Label(category.rawValue, systemImage: category.icon)
+                                .tag(Category?.some(category))
+                        }
+                    }
 
+                    Toggle("Add deadline", isOn: $isSettingDueDate)
                     Toggle("Notify me", isOn: $remind)
+                        .disabled(!isSettingDueDate)
 
-                    DatePicker(
-                        "Due Date",
-                        selection: Binding(
-                            get: { dueDate ?? Date() },
-                            set: { dueDate = $0 }
-                        ),
-                        displayedComponents: [.date, .hourAndMinute]
-                    )
-                    .environment(\.timeZone, .current)
-                    .opacity(remind ? 1 : 0.5)
-                    .disabled(!remind)
+                    if isSettingDueDate {
+                        DatePicker(
+                            "Due Date",
+                            selection: Binding(
+                                get: { dueDate ?? Date() },
+                                set: { dueDate = $0 }
+                            ),
+                            displayedComponents: [.date, .hourAndMinute]
+                        )
+                        .environment(\.timeZone, .current)
+                        .opacity(remind ? 1 : 0.5)
+                        .disabled(!remind)
+                    }
 
                     Toggle("Mark as done", isOn: $isDone)
                 }
@@ -301,10 +394,11 @@ struct AddChecklistView: View {
                         onSave(
                             title,
                             notes.isEmpty ? nil : notes,
-                            remind ? dueDate : nil,
-                            remind,
+                            isSettingDueDate ? (dueDate ?? Date()) : nil,
+                            isSettingDueDate ? remind : false,
                             items.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty },
-                            isDone
+                            isDone,
+                            selectedCategory
                         )
                         dismiss()
                     }
@@ -318,10 +412,14 @@ struct AddChecklistView: View {
                 notes = checklist.notes ?? ""
                 dueDate = checklist.dueDate
                 remind = checklist.remind
+                isSettingDueDate = checklist.dueDate != nil
                 isDone = checklist.isDone
                 items = checklist.items.sorted { $0.position < $1.position }
                 if items.isEmpty {
                     items = [ChecklistItem(text: "New item")]
+                }
+                if let raw = checklist.category {
+                    selectedCategory = Category(rawValue: raw)
                 }
             }
         }
@@ -341,6 +439,15 @@ struct ChecklistRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
+                if let raw = checklist.category, let cat = Category(rawValue: raw) {
+                    Text(cat.rawValue)
+                        .font(.caption2.bold())
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(cat.color.opacity(0.2))
+                        .foregroundStyle(cat.color)
+                        .clipShape(Capsule())
+                }
                 Text(checklist.title)
                     .font(.headline)
                 Spacer()
@@ -398,16 +505,33 @@ struct ChecklistRow: View {
 
     private func timeRemaining(until date: Date) -> String {
         let remaining = date.timeIntervalSinceNow
-        if remaining <= 0 {
-            return "Overdue"
+        if remaining < 0 {
+            let overdue = -remaining
+            if overdue < 60 {
+                return "Just now"
+            } else if overdue < 3600 {
+                let minutes = Int(ceil(overdue / 60))
+                return "\(minutes) min ago"
+            } else if overdue < 86_400 {
+                let hours = Int(ceil(overdue / 3600))
+                return "\(hours) hour\(hours == 1 ? "" : "s") ago"
+            } else {
+                let days = Int(ceil(overdue / 86_400))
+                return "\(days) day\(days == 1 ? "" : "s") ago"
+            }
         }
         let hours = remaining / 3600
         if hours >= 24 {
             let days = Int(hours / 24)
             return "\(days) day\(days == 1 ? "" : "s") left"
-        } else {
+        } else if hours >= 1 {
             let h = Int(ceil(hours))
             return "\(h) hour\(h == 1 ? "" : "s") left"
+        } else if remaining >= 60 {
+            let minutes = Int(ceil(remaining / 60))
+            return "\(minutes) min left"
+        } else {
+            return "Now"
         }
     }
 }

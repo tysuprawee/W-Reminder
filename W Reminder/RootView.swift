@@ -26,6 +26,11 @@ struct RootView: View {
                     Label("Checklists", systemImage: "checklist")
                 }
 
+            CalendarView(theme: selectedTheme)
+                .tabItem {
+                    Label("Calendar", systemImage: "calendar")
+                }
+
             RecordsView(theme: selectedTheme)
                 .tabItem {
                     Label("Records", systemImage: "tray.full")

@@ -30,6 +30,7 @@ final class Checklist {
     var dueDate: Date?
     var remind: Bool = true
     var isDone: Bool = false
+    var category: String? // Store raw value of Category enum
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.checklist) var items: [ChecklistItem] = []
 
     init(
@@ -37,13 +38,15 @@ final class Checklist {
         notes: String? = nil,
         dueDate: Date? = nil,
         remind: Bool = true,
-        items: [ChecklistItem] = []
+        items: [ChecklistItem] = [],
+        category: Category? = nil
     ) {
         self.title = title
         self.notes = notes
         self.dueDate = dueDate
         self.remind = remind
         self.items = items
+        self.category = category?.rawValue
     }
 }
 
@@ -56,19 +59,22 @@ final class SimpleChecklist {
     var dueDate: Date?
     var remind: Bool = true
     var isDone: Bool = false
+    var category: String? // Store raw value of Category enum
 
     init(
         title: String,
         notes: String? = nil,
         dueDate: Date? = nil,
         remind: Bool = true,
-        isDone: Bool = false
+        isDone: Bool = false,
+        category: Category? = nil
     ) {
         self.title = title
         self.notes = notes
         self.dueDate = dueDate
         self.remind = remind
         self.isDone = isDone
+        self.category = category?.rawValue
     }
 }
 
