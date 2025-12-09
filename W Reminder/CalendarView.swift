@@ -38,13 +38,17 @@ struct CalendarView: View {
         calendar.shortWeekdaySymbols
     }
 
+    @Namespace private var animation
+
     var body: some View {
         NavigationStack {
             ZStack {
+                // Background
                 LinearGradient(
                     colors: [
-                        theme.background.opacity(0.85),
-                        theme.accent.opacity(0.1)
+                        theme.background,
+                        theme.accent.opacity(0.15),
+                        theme.background
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -53,28 +57,68 @@ struct CalendarView: View {
 
                 VStack(spacing: 0) {
                     // Custom Calendar Grid
-                    VStack(spacing: 16) {
+                    VStack(spacing: 20) {
                         // Header
                         HStack {
                             Text(calendarDate, format: .dateTime.month(.wide).year())
-                                .font(.title3.bold())
+                                .font(.title2.bold())
+                                .shadow(color: theme.primary.opacity(0.1), radius: 2, x: 0, y: 1)
+                            
                             Spacer()
-                            HStack(spacing: 20) {
+                            
+                            HStack(spacing: 12) {
                                 Button {
-                                    withAnimation { monthOffset -= 1 }
+                                    withAnimation(.snappy(duration: 0.3)) {
+                                        monthOffset -= 1
+                                    }
                                 } label: {
                                     Image(systemName: "chevron.left")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(theme.primary)
+                                        .frame(width: 32, height: 32)
+                                        .background(
+                                            Circle()
+                                                .fill(.ultraThinMaterial)
+                                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 2)
+                                        )
                                 }
+                                
                                 Button {
-                                    withAnimation { monthOffset += 1 }
+                                    withAnimation(.snappy(duration: 0.3)) {
+                                        monthOffset = 0
+                                        selectedDate = Date()
+                                    }
+                                } label: {
+                                    Text("Today")
+                                        .font(.caption.bold())
+                                        .foregroundStyle(theme.primary)
+                                        .padding(.horizontal, 12)
+                                        .frame(height: 32)
+                                        .background(
+                                            Capsule()
+                                                .fill(.ultraThinMaterial)
+                                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 2)
+                                        )
+                                }
+
+                                Button {
+                                    withAnimation(.snappy(duration: 0.3)) {
+                                        monthOffset += 1
+                                    }
                                 } label: {
                                     Image(systemName: "chevron.right")
+                                        .font(.subheadline.bold())
+                                        .foregroundStyle(theme.primary)
+                                        .frame(width: 32, height: 32)
+                                        .background(
+                                            Circle()
+                                                .fill(.ultraThinMaterial)
+                                                .shadow(color: .black.opacity(0.1), radius: 2, x: 0, y: 2)
+                                        )
                                 }
                             }
-                            .font(.headline)
-                            .foregroundStyle(theme.accent)
                         }
-                        .padding(.horizontal)
+                        .padding(.horizontal, 8)
                         
                         // Days Header
                         HStack {
@@ -87,7 +131,7 @@ struct CalendarView: View {
                         }
                         
                         // Days Grid
-                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 10) {
+                        LazyVGrid(columns: Array(repeating: GridItem(.flexible()), count: 7), spacing: 12) {
                             // Blank spaces for start of month
                             if let first = daysInMonth.first {
                                 let weekday = calendar.component(.weekday, from: first)
@@ -98,6 +142,7 @@ struct CalendarView: View {
                             
                             ForEach(daysInMonth, id: \.self) { date in
                                 let isSelected = isSameDay(date, as: selectedDate)
+                                let isToday = isSameDay(date, as: Date())
                                 let hasEvents = eventDates.contains { 
                                     calendar.isDate($0, inSameDayAs: date) 
                                 }
@@ -107,28 +152,49 @@ struct CalendarView: View {
                                         selectedDate = date
                                     }
                                 } label: {
-                                    VStack(spacing: 4) {
-                                        Text("\(calendar.component(.day, from: date))")
-                                            .font(.body)
-                                            .fontWeight(isSelected ? .bold : .regular)
-                                            .foregroundStyle(isSelected ? .white : .primary)
+                                    ZStack {
+                                        if isSelected {
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .fill(theme.accent)
+                                                .matchedGeometryEffect(id: "selection", in: animation)
+                                                .shadow(color: theme.accent.opacity(0.3), radius: 4, x: 0, y: 2)
+                                        } else if isToday {
+                                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                                                .stroke(theme.accent.opacity(0.5), lineWidth: 1.5)
+                                        }
                                         
-                                        Circle()
-                                            .fill(hasEvents ? (isSelected ? .white : theme.accent) : .clear)
-                                            .frame(width: 4, height: 4)
+                                        VStack(spacing: 4) {
+                                            Text("\(calendar.component(.day, from: date))")
+                                                .font(.callout)
+                                                .fontWeight(isSelected || isToday ? .semibold : .regular)
+                                                .foregroundStyle(isSelected ? .white : (isToday ? theme.accent : theme.primary))
+                                            
+                                            if hasEvents {
+                                                Circle()
+                                                    .fill(isSelected ? .white : theme.accent)
+                                                    .frame(width: 4, height: 4)
+                                            } else {
+                                                Circle()
+                                                    .fill(.clear)
+                                                    .frame(width: 4, height: 4)
+                                            }
+                                        }
                                     }
-                                    .frame(maxWidth: .infinity)
-                                    .frame(height: 40)
-                                    .background(isSelected ? theme.accent : Color.clear)
-                                    .clipShape(RoundedRectangle(cornerRadius: 10))
+                                    .frame(height: 44)
+                                    .contentShape(Rectangle())
                                 }
                                 .buttonStyle(.plain)
                             }
                         }
+                        .transition(.move(edge: monthOffset > 0 ? .trailing : .leading).combined(with: .opacity))
+                        .id(monthOffset) // Triggers transition when month changes
                     }
-                    .padding()
-                    .background(theme.background.opacity(0.5))
-                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                    .padding(20)
+                    .background(
+                        RoundedRectangle(cornerRadius: 24, style: .continuous)
+                            .fill(.ultraThinMaterial)
+                            .shadow(color: .black.opacity(0.05), radius: 10, x: 0, y: 4)
+                    )
                     .padding()
 
                     Divider()

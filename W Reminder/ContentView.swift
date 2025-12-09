@@ -33,6 +33,7 @@ struct MilestoneView: View {
     var body: some View {
         NavigationStack {
             ZStack {
+                // Background
                 LinearGradient(
                     colors: [
                         theme.background.opacity(0.85),
@@ -43,35 +44,26 @@ struct MilestoneView: View {
                 )
                 .ignoresSafeArea()
 
-                VStack(alignment: .leading, spacing: 16) {
-                    header
-
-                    let active = checklists.filter { !$0.isDone }
-                    let filteredActive = active.filter {
-                        guard let filterCategory else { return true }
-                        return $0.category == filterCategory.rawValue
-                    }
-                    let sortedActive = sort(filteredActive)
-
-                    if sortedActive.isEmpty {
-                        emptyState
-                    } else {
-                        checklistList(active: sortedActive)
-                    }
-
-                    Spacer()
-                }
-                .padding()
-            }
-            .navigationTitle("Milestones")
-            .toolbar {
-                ToolbarItem(placement: .topBarTrailing) {
-                    HStack {
+                VStack(spacing: 0) {
+                    // Custom Header
+                    HStack(alignment: .bottom) {
+                        VStack(alignment: .leading, spacing: 6) {
+                            Text("Milestones")
+                                .font(.system(size: 34, weight: .bold))
+                            
+                            Text("Stay on top of things")
+                                .font(.subheadline)
+                                .foregroundStyle(theme.secondary)
+                        }
+                        
+                        Spacer()
+                        
+                        // Custom Filter Button
                         Menu {
                             // Filter Section
                             Section("Filter") {
                                 Button {
-                                    filterCategory = nil
+                                    withAnimation { filterCategory = nil }
                                 } label: {
                                     if filterCategory == nil {
                                         Label("All Categories", systemImage: "checkmark")
@@ -81,7 +73,7 @@ struct MilestoneView: View {
                                 }
                                 ForEach(Category.allCases) { category in
                                     Button {
-                                        filterCategory = category
+                                        withAnimation { filterCategory = category }
                                     } label: {
                                         if filterCategory == category {
                                             Label(category.rawValue, systemImage: "checkmark")
@@ -101,19 +93,72 @@ struct MilestoneView: View {
                                 }
                             }
                         } label: {
-                            Image(systemName: "line.3.horizontal.decrease.circle")
+                            Image(systemName: "slider.horizontal.3")
                                 .font(.headline)
+                                .foregroundStyle(theme.primary)
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(theme.accent.opacity(0.2), lineWidth: 1)
+                                )
                         }
+                    }
+                    .padding(.horizontal)
+                    .padding(.bottom)
+                    .background(
+                        Rectangle()
+                            .fill(.ultraThinMaterial)
+                            .ignoresSafeArea()
+                    )
 
+                    // List Content
+                    let active = checklists.filter { !$0.isDone }
+                    let filteredActive = active.filter {
+                        guard let filterCategory else { return true }
+                        return $0.category == filterCategory.rawValue
+                    }
+                    let sortedActive = sort(filteredActive)
+
+                    if sortedActive.isEmpty {
+                        emptyState
+                            .padding(.top, 40)
+                    } else {
+                        checklistList(active: sortedActive)
+                            .padding(.top)
+                    }
+
+                    Spacer()
+                }
+                
+                // Floating Action Button
+                VStack {
+                    Spacer()
+                    HStack {
+                        Spacer()
                         Button {
                             showingAddChecklist = true
                         } label: {
                             Image(systemName: "plus")
-                                .font(.headline)
+                                .font(.title.bold())
+                                .foregroundStyle(.white)
+                                .frame(width: 60, height: 60)
+                                .background(
+                                    Circle()
+                                        .fill(theme.accent)
+                                        .shadow(color: theme.accent.opacity(0.4), radius: 10, x: 0, y: 5)
+                                )
                         }
+                        .padding()
                     }
                 }
             }
+            // Hide standard navigation bar
+            .toolbar(.hidden, for: .navigationBar)
             .sheet(isPresented: $showingAddChecklist) {
                 AddChecklistView(
                     checklist: editingChecklist,
