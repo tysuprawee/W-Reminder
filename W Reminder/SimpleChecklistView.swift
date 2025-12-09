@@ -708,7 +708,7 @@ struct SimpleChecklistRow: View {
 
 #Preview {
     SimpleChecklistView(theme: .default)
-        .modelContainer(for: [SimpleChecklist.self], inMemory: true)
+        .modelContainer(for: [SimpleChecklist.self, Tag.self], inMemory: true)
 }
 
 

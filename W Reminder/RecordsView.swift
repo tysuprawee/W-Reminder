@@ -337,6 +337,6 @@ struct RecordsView: View {
 
 #Preview {
     RecordsView(theme: .default)
-        .modelContainer(for: [Checklist.self, ChecklistItem.self, SimpleChecklist.self], inMemory: true)
+        .modelContainer(for: [Checklist.self, ChecklistItem.self, SimpleChecklist.self, Tag.self], inMemory: true)
 }
 

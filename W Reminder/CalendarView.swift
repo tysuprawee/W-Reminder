@@ -342,5 +342,5 @@ struct DayCell: View {
 
 #Preview {
     CalendarView(theme: .default)
-        .modelContainer(for: [Checklist.self, SimpleChecklist.self], inMemory: true)
+        .modelContainer(for: [Checklist.self, SimpleChecklist.self, Tag.self], inMemory: true)
 }

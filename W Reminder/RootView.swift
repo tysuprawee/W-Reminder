@@ -159,6 +159,6 @@ struct SettingsView: View {
 
 #Preview {
     RootView()
-        .modelContainer(for: [Checklist.self, ChecklistItem.self, SimpleChecklist.self], inMemory: true)
+        .modelContainer(for: [Checklist.self, ChecklistItem.self, SimpleChecklist.self, Tag.self], inMemory: true)
 }
 

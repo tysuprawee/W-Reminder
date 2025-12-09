@@ -720,7 +720,7 @@ struct AddChecklistView: View {
 
 #Preview {
     MilestoneView(theme: .default)
-        .modelContainer(for: [Checklist.self, ChecklistItem.self], inMemory: true)
+        .modelContainer(for: [Checklist.self, ChecklistItem.self, Tag.self], inMemory: true)
 }
 
 struct ChecklistRow: View {
