@@ -16,6 +16,7 @@ struct W_ReminderApp: App {
             Checklist.self,
             ChecklistItem.self,
             SimpleChecklist.self,
+            Tag.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
