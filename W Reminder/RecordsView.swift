@@ -35,66 +35,22 @@ struct RecordsView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                LinearGradient(
-                    colors: [
-                        theme.background.opacity(0.9),
-                        theme.primary.opacity(0.08)
-                    ],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-                .ignoresSafeArea()
+                backgroundView
 
                 VStack(alignment: .leading, spacing: 16) {
                     header
-
-                    if completedMilestones.isEmpty && completedSimples.isEmpty {
-                        emptyState
-                    } else {
-                        segmentedControl
-                        listContent
-                    }
-
+                    mainContent
                     Spacer()
                 }
                 .padding()
             }
             .navigationTitle("Records")
-            .toolbar {
-                ToolbarItemGroup(placement: .topBarTrailing) {
-                    if selectedTab == .milestones, !completedMilestones.isEmpty {
-                        Button("Clear Milestones") { confirmClearMilestones = true }
-                    }
-                    if selectedTab == .checklists, !completedSimples.isEmpty {
-                        Button("Clear Checklists") { confirmClearSimples = true }
-                    }
-                }
-            }
+            .toolbar { toolbarContent }
             .sheet(isPresented: $showMilestoneSheet) {
-                AddChecklistView(checklist: editingMilestone, theme: theme) { title, notes, dueDate, remind, items, isDone, category in
-                    saveMilestone(
-                        original: editingMilestone,
-                        title: title,
-                        notes: notes,
-                        dueDate: dueDate,
-                        remind: remind,
-                        items: items,
-                        isDone: isDone,
-                        category: category
-                    )
-                }
+                milestoneSheetContent
             }
             .sheet(isPresented: $showSimpleSheet) {
-                AddSimpleChecklistView(checklist: editingSimple, theme: theme) { title, notes, dueDate, remind, category in
-                    saveSimple(
-                        original: editingSimple,
-                        title: title,
-                        notes: notes,
-                        dueDate: dueDate,
-                        remind: remind,
-                        category: category
-                    )
-                }
+                simpleSheetContent
             }
             .alert("Clear milestone records?", isPresented: $confirmClearMilestones) {
                 Button("Delete", role: .destructive) {
@@ -115,6 +71,69 @@ struct RecordsView: View {
         }
         .tint(theme.accent)
         .background(theme.background.ignoresSafeArea())
+    }
+
+    // MARK: - Subviews
+
+    private var backgroundView: some View {
+        LinearGradient(
+            colors: [
+                theme.background.opacity(0.9),
+                theme.primary.opacity(0.08)
+            ],
+            startPoint: .topLeading,
+            endPoint: .bottomTrailing
+        )
+        .ignoresSafeArea()
+    }
+
+    @ViewBuilder
+    private var mainContent: some View {
+        if completedMilestones.isEmpty && completedSimples.isEmpty {
+            emptyState
+        } else {
+            segmentedControl
+            listContent
+        }
+    }
+
+    private var toolbarContent: some ToolbarContent {
+        ToolbarItemGroup(placement: .topBarTrailing) {
+            if selectedTab == .milestones, !completedMilestones.isEmpty {
+                Button("Clear Milestones") { confirmClearMilestones = true }
+            }
+            if selectedTab == .checklists, !completedSimples.isEmpty {
+                Button("Clear Checklists") { confirmClearSimples = true }
+            }
+        }
+    }
+
+    private var milestoneSheetContent: some View {
+        AddChecklistView(checklist: editingMilestone, theme: theme) { title, notes, dueDate, remind, items, isDone, tag in
+            saveMilestone(
+                original: editingMilestone,
+                title: title,
+                notes: notes,
+                dueDate: dueDate,
+                remind: remind,
+                items: items,
+                isDone: isDone,
+                tag: tag
+            )
+        }
+    }
+
+    private var simpleSheetContent: some View {
+        AddSimpleChecklistView(checklist: editingSimple, theme: theme) { title, notes, dueDate, remind, tag in
+            saveSimple(
+                original: editingSimple,
+                title: title,
+                notes: notes,
+                dueDate: dueDate,
+                remind: remind,
+                tag: tag
+            )
+        }
     }
 
     // MARK: - Content
@@ -220,7 +239,7 @@ struct RecordsView: View {
         remind: Bool,
         items: [ChecklistItem],
         isDone: Bool,
-        category: Category?
+        tag: Tag?
     ) {
         let checklist: Checklist
         if let original {
@@ -230,7 +249,7 @@ struct RecordsView: View {
             checklist.dueDate = dueDate
             checklist.remind = remind
             checklist.isDone = isDone
-            checklist.category = category?.rawValue
+            checklist.tag = tag
         } else {
             checklist = Checklist(
                 title: title,
@@ -238,7 +257,7 @@ struct RecordsView: View {
                 dueDate: dueDate,
                 remind: remind,
                 items: [],
-                category: category
+                tag: tag
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
@@ -261,7 +280,7 @@ struct RecordsView: View {
         notes: String?,
         dueDate: Date?,
         remind: Bool,
-        category: Category?
+        tag: Tag?
     ) {
         let checklist: SimpleChecklist
         if let original {
@@ -270,7 +289,7 @@ struct RecordsView: View {
             checklist.notes = notes
             checklist.dueDate = dueDate
             checklist.remind = remind
-            checklist.category = category?.rawValue
+            checklist.tag = tag
         } else {
             checklist = SimpleChecklist(
                 title: title,
@@ -278,7 +297,7 @@ struct RecordsView: View {
                 dueDate: dueDate,
                 remind: remind,
                 isDone: true,
-                category: category
+                tag: tag
             )
             modelContext.insert(checklist)
         }

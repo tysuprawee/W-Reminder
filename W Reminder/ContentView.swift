@@ -13,12 +13,13 @@ import UIKit
 struct MilestoneView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \Checklist.createdAt, order: .forward) private var checklists: [Checklist]
+    @Query private var tags: [Tag]
 
     @State private var showingAddChecklist = false
     @State private var editingChecklist: Checklist?
     @State private var showPermissionAlert = false
     @State private var sortOption: SortOption = .creation
-    @State private var filterCategory: Category? = nil // nil = all
+    @State private var filterTag: Tag? = nil // nil = all
 
     enum SortOption: Identifiable, CaseIterable {
         case creation
@@ -63,22 +64,25 @@ struct MilestoneView: View {
                             // Filter Section
                             Section("Filter") {
                                 Button {
-                                    withAnimation { filterCategory = nil }
+                                    withAnimation { filterTag = nil }
                                 } label: {
-                                    if filterCategory == nil {
-                                        Label("All Categories", systemImage: "checkmark")
+                                    if filterTag == nil {
+                                        Label("All Tags", systemImage: "checkmark")
                                     } else {
-                                        Text("All Categories")
+                                        Text("All Tags")
                                     }
                                 }
-                                ForEach(Category.allCases) { category in
+                                ForEach(tags) { tag in
                                     Button {
-                                        withAnimation { filterCategory = category }
+                                        withAnimation { filterTag = tag }
                                     } label: {
-                                        if filterCategory == category {
-                                            Label(category.rawValue, systemImage: "checkmark")
+                                        if filterTag == tag {
+                                            Label(tag.name, systemImage: "checkmark")
                                         } else {
-                                            Text(category.rawValue)
+                                            HStack {
+                                                Circle().fill(tag.color).frame(width: 8, height: 8)
+                                                Text(tag.name)
+                                            }
                                         }
                                     }
                                 }
@@ -119,8 +123,8 @@ struct MilestoneView: View {
                     // List Content
                     let active = checklists.filter { !$0.isDone }
                     let filteredActive = active.filter {
-                        guard let filterCategory else { return true }
-                        return $0.category == filterCategory.rawValue
+                        guard let filterTag else { return true }
+                        return $0.tag == filterTag
                     }
                     let sortedActive = sort(filteredActive)
 
@@ -163,7 +167,7 @@ struct MilestoneView: View {
                 AddChecklistView(
                     checklist: editingChecklist,
                     theme: theme
-                ) { title, notes, dueDate, remind, items, isDone, category in
+                ) { title, notes, dueDate, remind, items, isDone, tag in
                     saveChecklist(
                         original: editingChecklist,
                         title: title,
@@ -172,7 +176,7 @@ struct MilestoneView: View {
                         remind: remind,
                         items: items,
                         isDone: isDone,
-                        category: category
+                        tag: tag
                     )
                 }
             }
@@ -201,17 +205,16 @@ struct MilestoneView: View {
         remind: Bool,
         items: [ChecklistItem],
         isDone: Bool,
-        category: Category?
+        tag: Tag?
     ) {
         let checklist: Checklist
         if let original {
             checklist = original
             checklist.title = title
             checklist.notes = notes
-            checklist.dueDate = dueDate
             checklist.remind = remind
             checklist.isDone = isDone
-            checklist.category = category?.rawValue
+            checklist.tag = tag
         } else {
             checklist = Checklist(
                 title: title,
@@ -219,7 +222,7 @@ struct MilestoneView: View {
                 dueDate: dueDate,
                 remind: remind,
                 items: [],
-                category: category
+                tag: tag
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
@@ -343,112 +346,325 @@ struct MilestoneView: View {
 
 struct AddChecklistView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query private var tags: [Tag]
 
     @State private var title: String = ""
     @State private var notes: String = ""
     @State private var dueDate: Date? = nil
     @State private var remind: Bool = true
     @State private var isSettingDueDate: Bool = false
-    @State private var items: [ChecklistItem] = [ChecklistItem(text: "New item")]
+    @State private var items: [ChecklistItem] = [ChecklistItem(text: "New item", position: 0)]
     @State private var isDone: Bool = false
-    @State private var selectedCategory: Category? = nil
+    @State private var selectedTag: Tag? = nil
+    
+    // Custom Tag Creation State
+    @State private var showingCreateTag = false
+    @State private var newTagName = ""
+    @State private var newTagColor = Color.blue
 
     var checklist: Checklist?
     let theme: Theme
-    var onSave: (String, String?, Date?, Bool, [ChecklistItem], Bool, Category?) -> Void
+    var onSave: (String, String?, Date?, Bool, [ChecklistItem], Bool, Tag?) -> Void
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Checklist")) {
-                    TextField("Title", text: $title)
-                    TextField("Notes (optional)", text: $notes, axis: .vertical)
-                        .lineLimit(1...4)
-                    
-                    Picker("Category", selection: $selectedCategory) {
-                        Text("None").tag(Category?.none)
-                        ForEach(Category.allCases) { category in
-                            Label(category.rawValue, systemImage: category.icon)
-                                .tag(Category?.some(category))
+            ZStack {
+                // Background
+                theme.background.ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            // Title Input
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Title")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.secondary)
+                                TextField("What needs to be done?", text: $title)
+                                    .font(.title2.bold())
+                                    .padding()
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                            .padding(.horizontal)
+
+                            // Notes Input
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Notes")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.secondary)
+                                TextField("Add details...", text: $notes, axis: .vertical)
+                                    .lineLimit(3...6)
+                                    .padding()
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                            .padding(.horizontal)
+
+                            // Tag Selection
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Tags")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.secondary)
+                                    .padding(.horizontal)
+                                
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        // "None" Option
+                                        Button {
+                                            withAnimation { selectedTag = nil }
+                                        } label: {
+                                            Image(systemName: "slash.circle")
+                                                .font(.title2)
+                                                .foregroundStyle(selectedTag == nil ? .white : .secondary)
+                                                .frame(width: 44, height: 44)
+                                                .background(selectedTag == nil ? theme.accent : theme.primary.opacity(0.1))
+                                                .clipShape(Circle())
+                                        }
+                                        
+                                        ForEach(tags) { tag in
+                                            Button {
+                                                withAnimation { selectedTag = tag }
+                                            } label: {
+                                                Circle()
+                                                    .fill(tag.color)
+                                                    .frame(width: 44, height: 44)
+                                                    .overlay(
+                                                        Image(systemName: "checkmark")
+                                                            .font(.headline)
+                                                            .foregroundStyle(.white)
+                                                            .opacity(selectedTag == tag ? 1 : 0)
+                                                    )
+                                                    .shadow(color: tag.color.opacity(0.3), radius: 4, y: 2)
+                                            }
+                                        }
+                                        
+                                        // "Add Tag" Button
+                                        Button {
+                                            showingCreateTag = true
+                                        } label: {
+                                            Image(systemName: "plus")
+                                                .font(.headline)
+                                                .foregroundStyle(theme.accent)
+                                                .frame(width: 44, height: 44)
+                                                .background(
+                                                    Circle()
+                                                        .stroke(theme.accent, style: StrokeStyle(lineWidth: 1, dash: [4]))
+                                                )
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+
+                            // Toggles Section
+                            VStack(spacing: 20) {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text("Deadline")
+                                            .font(.headline)
+                                        if isSettingDueDate {
+                                            Text("Set a due date")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    CustomToggle(isOn: $isSettingDueDate.animation())
+                                }
+                                .padding()
+                                .background(theme.primary.opacity(0.05))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                                if isSettingDueDate {
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        DatePicker(
+                                            "",
+                                            selection: Binding(
+                                                get: { dueDate ?? Date() },
+                                                set: { dueDate = $0 }
+                                            ),
+                                            displayedComponents: [.date, .hourAndMinute]
+                                        )
+                                        .datePickerStyle(.graphical)
+                                        .tint(theme.accent)
+                                        
+                                        Divider()
+                                        
+                                        HStack {
+                                            Label("Remind me", systemImage: "bell.fill")
+                                                .font(.subheadline)
+                                            Spacer()
+                                            CustomToggle(isOn: $remind)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .transition(.scale.combined(with: .opacity))
+                                }
+                                
+                                HStack {
+                                    Label("Mark as Done", systemImage: "checkmark.circle.fill")
+                                        .font(.headline)
+                                    Spacer()
+                                    CustomToggle(isOn: $isDone)
+                                }
+                                .padding()
+                                .background(theme.primary.opacity(0.05))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                            .padding(.horizontal)
+
+                            // Checklist Items
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Checklist Items")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.secondary)
+                                
+                                ForEach($items) { $item in
+                                    HStack {
+                                        Button {
+                                            item.isDone.toggle()
+                                        } label: {
+                                            Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
+                                                .font(.title3)
+                                                .foregroundStyle(item.isDone ? theme.accent : .secondary)
+                                        }
+                                        
+                                        TextField("Item", text: $item.text)
+                                            .padding(.vertical, 8)
+                                        
+                                        if items.count > 1 {
+                                            Button {
+                                                withAnimation {
+                                                    if let idx = items.firstIndex(where: { $0.id == item.id }) {
+                                                        items.remove(at: idx)
+                                                    }
+                                                }
+                                            } label: {
+                                                Image(systemName: "trash")
+                                                    .font(.caption)
+                                                    .foregroundStyle(.red.opacity(0.7))
+                                            }
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                    .padding(.vertical, 8)
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 12))
+                                }
+                                
+                                Button {
+                                    withAnimation {
+                                        let newPos = (items.map { $0.position }.max() ?? -1) + 1
+                                        items.append(ChecklistItem(text: "", position: newPos))
+                                    }
+                                } label: {
+                                    Label("Add Item", systemImage: "plus")
+                                        .font(.subheadline.bold())
+                                        .frame(maxWidth: .infinity)
+                                        .padding()
+                                        .background(theme.primary.opacity(0.05))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .foregroundStyle(theme.accent)
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 100)
                         }
+                        .padding(.vertical)
                     }
-
-                    Toggle("Add deadline", isOn: $isSettingDueDate)
-                    Toggle("Notify me", isOn: $remind)
-                        .disabled(!isSettingDueDate)
-
-                    if isSettingDueDate {
-                        DatePicker(
-                            "Due Date",
-                            selection: Binding(
-                                get: { dueDate ?? Date() },
-                                set: { dueDate = $0 }
-                            ),
-                            displayedComponents: [.date, .hourAndMinute]
-                        )
-                        .environment(\.timeZone, .current)
-                        .opacity(remind ? 1 : 0.5)
-                        .disabled(!remind)
-                    }
-
-                    Toggle("Mark as done", isOn: $isDone)
                 }
 
-                Section("Items") {
-                    ForEach($items) { $item in
-                        HStack {
-                            Button {
-                                item.isDone.toggle()
-                            } label: {
-                                Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(item.isDone ? theme.accent : .secondary)
-                            }
-                            .buttonStyle(.plain)
-
-                            TextField("Task", text: $item.text)
+                // Bottom Action Bar
+                VStack {
+                    Spacer()
+                    HStack(spacing: 16) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Text("Cancel")
+                                .font(.headline)
+                                .foregroundStyle(theme.secondary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                        }
+                        
+                        Button {
+                            guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                            onSave(
+                                title,
+                                notes.isEmpty ? nil : notes,
+                                isSettingDueDate ? (dueDate ?? Date()) : nil,
+                                isSettingDueDate ? remind : false,
+                                items.filter { !$0.text.isEmpty },
+                                isDone,
+                                selectedTag
+                            )
+                            dismiss()
+                        } label: {
+                            Text("Save")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(theme.accent)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                                .shadow(color: theme.accent.opacity(0.3), radius: 10, y: 5)
                         }
                     }
-                    .onDelete { offsets in
-                        items.remove(atOffsets: offsets)
-                    }
-
-                    Button {
-                        let newPosition = (items.map { $0.position }.max() ?? -1) + 1
-                        items.append(ChecklistItem(text: "New item", position: newPosition))
-                    } label: {
-                        Label("Add item", systemImage: "plus.circle")
-                    }
+                    .padding()
+                    .background(
+                        LinearGradient(colors: [theme.background.opacity(0), theme.background], startPoint: .top, endPoint: .bottom)
+                    )
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(LinearGradient(
-                colors: [theme.background.opacity(0.8), theme.accent.opacity(0.1)],
-                startPoint: .top,
-                endPoint: .bottom
-            ))
-            .navigationTitle(checklist == nil ? "New Checklist" : "Edit Checklist")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        guard !title.trimmingCharacters(in: .whitespaces).isEmpty else {
-                            return
-                        }
-                        onSave(
-                            title,
-                            notes.isEmpty ? nil : notes,
-                            isSettingDueDate ? (dueDate ?? Date()) : nil,
-                            isSettingDueDate ? remind : false,
-                            items.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty },
-                            isDone,
-                            selectedCategory
-                        )
-                        dismiss()
+            .navigationTitle(checklist == nil ? "New Milestone" : "Edit Milestone")
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingCreateTag) {
+                NavigationStack {
+                    VStack(spacing: 24) {
+                        Circle()
+                            .fill(newTagColor)
+                            .frame(width: 80, height: 80)
+                            .shadow(radius: 5)
+                        
+                        TextField("Tag Name", text: $newTagName)
+                            .font(.title2)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal)
+                        
+                        CustomColorPicker(selection: $newTagColor)
+                        
+                        Spacer()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .padding(.top)
+                    .navigationTitle("New Tag")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showingCreateTag = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Create") {
+                                let tag = Tag(name: newTagName, colorHex: newTagColor.toHex())
+                                modelContext.insert(tag)
+                                selectedTag = tag
+                                showingCreateTag = false
+                                newTagName = ""
+                            }
+                            .disabled(newTagName.isEmpty)
+                        }
+                    }
                 }
+                .presentationDetents([.medium, .large])
             }
         }
         .onAppear {
@@ -461,11 +677,9 @@ struct AddChecklistView: View {
                 isDone = checklist.isDone
                 items = checklist.items.sorted { $0.position < $1.position }
                 if items.isEmpty {
-                    items = [ChecklistItem(text: "New item")]
+                    items = [ChecklistItem(text: "", position: 0)]
                 }
-                if let raw = checklist.category {
-                    selectedCategory = Category(rawValue: raw)
-                }
+                selectedTag = checklist.tag
             }
         }
     }
@@ -484,13 +698,13 @@ struct ChecklistRow: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
             HStack(alignment: .firstTextBaseline) {
-                if let raw = checklist.category, let cat = Category(rawValue: raw) {
-                    Text(cat.rawValue)
+                if let tag = checklist.tag {
+                    Text(tag.name)
                         .font(.caption2.bold())
                         .padding(.horizontal, 6)
                         .padding(.vertical, 2)
-                        .background(cat.color.opacity(0.2))
-                        .foregroundStyle(cat.color)
+                        .background(tag.color.opacity(0.2))
+                        .foregroundStyle(tag.color)
                         .clipShape(Capsule())
                 }
                 Text(checklist.title)

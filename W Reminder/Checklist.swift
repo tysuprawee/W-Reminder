@@ -11,8 +11,9 @@ final class ChecklistItem {
     var id: UUID = UUID()
     var text: String
     var isDone: Bool = false
-    var checklist: Checklist?
-    var position: Int = 0
+    var position: Int
+    
+    var checklist: Checklist? // Inverse relationship
 
     init(text: String, isDone: Bool = false, position: Int = 0) {
         self.text = text
@@ -26,27 +27,33 @@ final class Checklist {
     var id: UUID = UUID()
     var title: String
     var notes: String?
-    var createdAt: Date = Date()
+    var createdAt: Date
     var dueDate: Date?
-    var remind: Bool = true
+    var remind: Bool
     var isDone: Bool = false
-    var category: String? // Store raw value of Category enum
+    
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.checklist) var items: [ChecklistItem] = []
+    
+    // Updated: Use helper or just manual check for "overdue".
+    // Computed properties are not persisted but useful in views.
+    
+    @Relationship var tag: Tag?
 
     init(
         title: String,
         notes: String? = nil,
         dueDate: Date? = nil,
-        remind: Bool = true,
+        remind: Bool = false,
         items: [ChecklistItem] = [],
-        category: Category? = nil
+        tag: Tag? = nil
     ) {
         self.title = title
         self.notes = notes
+        self.createdAt = Date()
         self.dueDate = dueDate
         self.remind = remind
         self.items = items
-        self.category = category?.rawValue
+        self.tag = tag
     }
 }
 
@@ -55,26 +62,27 @@ final class SimpleChecklist {
     var id: UUID = UUID()
     var title: String
     var notes: String?
-    var createdAt: Date = Date()
+    var createdAt: Date
     var dueDate: Date?
-    var remind: Bool = true
+    var remind: Bool
     var isDone: Bool = false
-    var category: String? // Store raw value of Category enum
+    
+    @Relationship var tag: Tag?
 
     init(
         title: String,
         notes: String? = nil,
         dueDate: Date? = nil,
-        remind: Bool = true,
-        isDone: Bool = false,
-        category: Category? = nil
+        remind: Bool = false,
+        isDone: Bool = false, // Keep this parameter as it was in the original SimpleChecklist init
+        tag: Tag? = nil
     ) {
         self.title = title
         self.notes = notes
+        self.createdAt = Date()
         self.dueDate = dueDate
         self.remind = remind
-        self.isDone = isDone
-        self.category = category?.rawValue
+        self.isDone = isDone // Assign the parameter
+        self.tag = tag
     }
 }
-

@@ -6,12 +6,13 @@ import UIKit
 struct SimpleChecklistView: View {
     @Environment(\.modelContext) private var modelContext
     @Query(sort: \SimpleChecklist.createdAt, order: .forward) private var checklists: [SimpleChecklist]
+    @Query private var tags: [Tag]
 
     @State private var showingAdd = false
     @State private var editing: SimpleChecklist?
     @State private var showPermissionAlert = false
     @State private var sortOption: SortOption = .creation
-    @State private var filterCategory: Category? = nil // nil = all
+    @State private var filterTag: Tag? = nil // nil = all
 
     enum SortOption {
         case creation
@@ -53,22 +54,25 @@ struct SimpleChecklistView: View {
                             // Filter Section
                             Section("Filter") {
                                 Button {
-                                    withAnimation { filterCategory = nil }
+                                    withAnimation { filterTag = nil }
                                 } label: {
-                                    if filterCategory == nil {
-                                        Label("All Categories", systemImage: "checkmark")
+                                    if filterTag == nil {
+                                        Label("All Tags", systemImage: "checkmark")
                                     } else {
-                                        Text("All Categories")
+                                        Text("All Tags")
                                     }
                                 }
-                                ForEach(Category.allCases) { category in
+                                ForEach(tags) { tag in
                                     Button {
-                                        withAnimation { filterCategory = category }
+                                        withAnimation { filterTag = tag }
                                     } label: {
-                                        if filterCategory == category {
-                                            Label(category.rawValue, systemImage: "checkmark")
+                                        if filterTag == tag {
+                                            Label(tag.name, systemImage: "checkmark")
                                         } else {
-                                            Text(category.rawValue)
+                                            HStack {
+                                                Circle().fill(tag.color).frame(width: 8, height: 8)
+                                                Text(tag.name)
+                                            }
                                         }
                                     }
                                 }
@@ -108,8 +112,8 @@ struct SimpleChecklistView: View {
 
                     let active = checklists.filter { !$0.isDone }
                     let filteredActive = active.filter {
-                        guard let filterCategory else { return true }
-                        return $0.category == filterCategory.rawValue
+                        guard let filterTag else { return true }
+                        return $0.tag == filterTag
                     }
                     let sortedActive = sort(filteredActive)
 
@@ -152,14 +156,14 @@ struct SimpleChecklistView: View {
                 AddSimpleChecklistView(
                     checklist: editing,
                     theme: theme
-                ) { title, notes, dueDate, remind, category in
+                ) { title, notes, dueDate, remind, tag in
                     save(
                         original: editing,
                         title: title,
                         notes: notes,
                         dueDate: dueDate,
                         remind: remind,
-                        category: category
+                        tag: tag
                     )
                 }
             }
@@ -186,7 +190,7 @@ struct SimpleChecklistView: View {
         notes: String?,
         dueDate: Date?,
         remind: Bool,
-        category: Category?
+        tag: Tag?
     ) {
         let checklist: SimpleChecklist
         if let original {
@@ -195,14 +199,14 @@ struct SimpleChecklistView: View {
             checklist.notes = notes
             checklist.dueDate = dueDate
             checklist.remind = remind
-            checklist.category = category?.rawValue
+            checklist.tag = tag
         } else {
             checklist = SimpleChecklist(
                 title: title,
                 notes: notes,
                 dueDate: dueDate,
                 remind: remind,
-                category: category
+                tag: tag
             )
             modelContext.insert(checklist)
         }
@@ -320,80 +324,255 @@ struct SimpleChecklistView: View {
 
 struct AddSimpleChecklistView: View {
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.modelContext) private var modelContext
+    @Query private var tags: [Tag]
 
     @State private var title: String = ""
     @State private var notes: String = ""
     @State private var dueDate: Date? = nil
     @State private var remind: Bool = true
     @State private var isSettingDueDate: Bool = false
-    @State private var selectedCategory: Category? = nil
+    @State private var selectedTag: Tag? = nil
+    
+    // Custom Tag Creation State
+    @State private var showingCreateTag = false
+    @State private var newTagName = ""
+    @State private var newTagColor = Color.blue
 
     var checklist: SimpleChecklist?
     let theme: Theme
-    var onSave: (String, String?, Date?, Bool, Category?) -> Void
+    var onSave: (String, String?, Date?, Bool, Tag?) -> Void
 
     var body: some View {
         NavigationStack {
-            Form {
-                Section(header: Text("Checklist")) {
-                    TextField("Title", text: $title)
-                    TextField("Notes (optional)", text: $notes, axis: .vertical)
-                        .lineLimit(1...4)
-                    
-                    Picker("Category", selection: $selectedCategory) {
-                        Text("None").tag(Category?.none)
-                        ForEach(Category.allCases) { category in
-                            Label(category.rawValue, systemImage: category.icon)
-                                .tag(Category?.some(category))
+            ZStack {
+                // Background
+                theme.background.ignoresSafeArea()
+                
+                VStack(spacing: 0) {
+                    ScrollView {
+                        VStack(spacing: 24) {
+                            // Title Input
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Title")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.secondary)
+                                TextField("What to do?", text: $title)
+                                    .font(.title2.bold())
+                                    .padding()
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                            .padding(.horizontal)
+
+                            // Notes Input
+                            VStack(alignment: .leading, spacing: 8) {
+                                Text("Notes")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.secondary)
+                                TextField("Add details...", text: $notes, axis: .vertical)
+                                    .lineLimit(3...6)
+                                    .padding()
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                            }
+                            .padding(.horizontal)
+
+                            // Tag Selection
+                            VStack(alignment: .leading, spacing: 12) {
+                                Text("Highlighters")
+                                    .font(.headline)
+                                    .foregroundStyle(theme.secondary)
+                                    .padding(.horizontal)
+                                
+                                ScrollView(.horizontal, showsIndicators: false) {
+                                    HStack(spacing: 12) {
+                                        // "None" Option
+                                        Button {
+                                            withAnimation { selectedTag = nil }
+                                        } label: {
+                                            Image(systemName: "slash.circle")
+                                                .font(.title2)
+                                                .foregroundStyle(selectedTag == nil ? .white : .secondary)
+                                                .frame(width: 44, height: 44)
+                                                .background(selectedTag == nil ? theme.accent : theme.primary.opacity(0.1))
+                                                .clipShape(Circle())
+                                        }
+                                        
+                                        ForEach(tags) { tag in
+                                            Button {
+                                                withAnimation { selectedTag = tag }
+                                            } label: {
+                                                Circle()
+                                                    .fill(tag.color)
+                                                    .frame(width: 44, height: 44)
+                                                    .overlay(
+                                                        Image(systemName: "checkmark")
+                                                            .font(.headline)
+                                                            .foregroundStyle(.white)
+                                                            .opacity(selectedTag == tag ? 1 : 0)
+                                                    )
+                                                    .shadow(color: tag.color.opacity(0.3), radius: 4, y: 2)
+                                            }
+                                        }
+                                        
+                                        // "Add Tag" Button
+                                        Button {
+                                            showingCreateTag = true
+                                        } label: {
+                                            Image(systemName: "plus")
+                                                .font(.headline)
+                                                .foregroundStyle(theme.accent)
+                                                .frame(width: 44, height: 44)
+                                                .background(
+                                                    Circle()
+                                                        .stroke(theme.accent, style: StrokeStyle(lineWidth: 1, dash: [4]))
+                                                )
+                                        }
+                                    }
+                                    .padding(.horizontal)
+                                }
+                            }
+
+                            // Toggles Section
+                            VStack(spacing: 20) {
+                                HStack {
+                                    VStack(alignment: .leading) {
+                                        Text("Deadline")
+                                            .font(.headline)
+                                        if isSettingDueDate {
+                                            Text("Set a due date")
+                                                .font(.caption)
+                                                .foregroundStyle(.secondary)
+                                        }
+                                    }
+                                    Spacer()
+                                    CustomToggle(isOn: $isSettingDueDate.animation())
+                                }
+                                .padding()
+                                .background(theme.primary.opacity(0.05))
+                                .clipShape(RoundedRectangle(cornerRadius: 16))
+
+                                if isSettingDueDate {
+                                    VStack(alignment: .leading, spacing: 16) {
+                                        DatePicker(
+                                            "",
+                                            selection: Binding(
+                                                get: { dueDate ?? Date() },
+                                                set: { dueDate = $0 }
+                                            ),
+                                            displayedComponents: [.date, .hourAndMinute]
+                                        )
+                                        .datePickerStyle(.graphical)
+                                        .tint(theme.accent)
+                                        
+                                        Divider()
+                                        
+                                        HStack {
+                                            Label("Remind me", systemImage: "bell.fill")
+                                                .font(.subheadline)
+                                            Spacer()
+                                            CustomToggle(isOn: $remind)
+                                        }
+                                    }
+                                    .padding()
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .transition(.scale.combined(with: .opacity))
+                                }
+                            }
+                            .padding(.horizontal)
+                            .padding(.bottom, 100)
+                        }
+                        .padding(.vertical)
+                    }
+                }
+
+                // Bottom Action Bar
+                VStack {
+                    Spacer()
+                    HStack(spacing: 16) {
+                        Button {
+                            dismiss()
+                        } label: {
+                            Text("Cancel")
+                                .font(.headline)
+                                .foregroundStyle(theme.secondary)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(.ultraThinMaterial)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                        }
+                        
+                        Button {
+                            guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                            onSave(
+                                title,
+                                notes.isEmpty ? nil : notes,
+                                isSettingDueDate ? (dueDate ?? Date()) : nil,
+                                isSettingDueDate ? remind : false,
+                                selectedTag
+                            )
+                            dismiss()
+                        } label: {
+                            Text("Save")
+                                .font(.headline)
+                                .foregroundStyle(.white)
+                                .frame(maxWidth: .infinity)
+                                .frame(height: 56)
+                                .background(theme.accent)
+                                .clipShape(RoundedRectangle(cornerRadius: 20))
+                                .shadow(color: theme.accent.opacity(0.3), radius: 10, y: 5)
                         }
                     }
-
-                    Toggle("Add deadline", isOn: $isSettingDueDate)
-                    Toggle("Notify me", isOn: $remind)
-                        .disabled(!isSettingDueDate)
-
-                    if isSettingDueDate {
-                        DatePicker(
-                            "Due Date",
-                            selection: Binding(
-                                get: { dueDate ?? Date() },
-                                set: { dueDate = $0 }
-                            ),
-                            displayedComponents: [.date, .hourAndMinute]
-                        )
-                        .environment(\.timeZone, .current)
-                        .opacity(remind ? 1 : 0.5)
-                        .disabled(!remind)
-                    }
+                    .padding()
+                    .background(
+                        LinearGradient(colors: [theme.background.opacity(0), theme.background], startPoint: .top, endPoint: .bottom)
+                    )
                 }
             }
-            .scrollContentBackground(.hidden)
-            .background(LinearGradient(
-                colors: [theme.background.opacity(0.8), theme.accent.opacity(0.1)],
-                startPoint: .top,
-                endPoint: .bottom
-            ))
             .navigationTitle(checklist == nil ? "New Checklist" : "Edit Checklist")
-            .toolbar {
-                ToolbarItem(placement: .cancellationAction) {
-                    Button("Cancel") { dismiss() }
-                }
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("Save") {
-                        guard !title.trimmingCharacters(in: .whitespaces).isEmpty else {
-                            return
-                        }
-                        onSave(
-                            title,
-                            notes.isEmpty ? nil : notes,
-                            isSettingDueDate ? (dueDate ?? Date()) : nil,
-                            isSettingDueDate ? remind : false,
-                            selectedCategory
-                        )
-                        dismiss()
+            .navigationBarTitleDisplayMode(.inline)
+            .sheet(isPresented: $showingCreateTag) {
+                NavigationStack {
+                    VStack(spacing: 24) {
+                        Circle()
+                            .fill(newTagColor)
+                            .frame(width: 80, height: 80)
+                            .shadow(radius: 5)
+                        
+                        TextField("Tag Name", text: $newTagName)
+                            .font(.title2)
+                            .multilineTextAlignment(.center)
+                            .padding()
+                            .background(Color.gray.opacity(0.1))
+                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            .padding(.horizontal)
+                        
+                        CustomColorPicker(selection: $newTagColor)
+                        
+                        Spacer()
                     }
-                    .buttonStyle(.borderedProminent)
+                    .padding(.top)
+                    .navigationTitle("New Highlighter")
+                    .navigationBarTitleDisplayMode(.inline)
+                    .toolbar {
+                        ToolbarItem(placement: .cancellationAction) {
+                            Button("Cancel") { showingCreateTag = false }
+                        }
+                        ToolbarItem(placement: .confirmationAction) {
+                            Button("Create") {
+                                let tag = Tag(name: newTagName, colorHex: newTagColor.toHex())
+                                modelContext.insert(tag)
+                                selectedTag = tag
+                                showingCreateTag = false
+                                newTagName = ""
+                            }
+                            .disabled(newTagName.isEmpty)
+                        }
+                    }
                 }
+                .presentationDetents([.medium, .large])
             }
         }
         .onAppear {
@@ -403,9 +582,7 @@ struct AddSimpleChecklistView: View {
                 dueDate = checklist.dueDate
                 remind = checklist.remind
                 isSettingDueDate = checklist.dueDate != nil
-                if let raw = checklist.category {
-                    selectedCategory = Category(rawValue: raw)
-                }
+                selectedTag = checklist.tag
             }
         }
     }
@@ -431,13 +608,13 @@ struct SimpleChecklistRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    if let raw = checklist.category, let cat = Category(rawValue: raw) {
-                        Text(cat.rawValue)
+                    if let tag = checklist.tag {
+                        Text(tag.name)
                             .font(.caption2.bold())
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(cat.color.opacity(0.2))
-                            .foregroundStyle(cat.color)
+                            .background(tag.color.opacity(0.2))
+                            .foregroundStyle(tag.color)
                             .clipShape(Capsule())
                     }
                     Text(checklist.title)
