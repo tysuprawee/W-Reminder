@@ -216,10 +216,14 @@ struct CalendarView: View {
                                 Image(systemName: milestone.isDone ? "flag.checkered" : "flag")
                                 Text(milestone.title)
                                 Spacer()
-                                if let tag = milestone.tag {
-                                   Circle()
-                                        .fill(tag.color)
-                                        .frame(width: 8, height: 8)
+                                if !milestone.tags.isEmpty {
+                                    HStack(spacing: 4) {
+                                        ForEach(milestone.tags.prefix(3)) { tag in
+                                            Circle()
+                                                .fill(tag.color)
+                                                .frame(width: 8, height: 8)
+                                        }
+                                    }
                                 }
                             }
                             .padding()
@@ -240,10 +244,14 @@ struct CalendarView: View {
                                 Image(systemName: checklist.isDone ? "checkmark.circle.fill" : "circle")
                                 Text(checklist.title)
                                 Spacer()
-                                if let tag = checklist.tag {
-                                   Circle()
-                                        .fill(tag.color)
-                                        .frame(width: 8, height: 8)
+                                if !checklist.tags.isEmpty {
+                                   HStack(spacing: 4) {
+                                        ForEach(checklist.tags.prefix(3)) { tag in
+                                            Circle()
+                                                .fill(tag.color)
+                                                .frame(width: 8, height: 8)
+                                        }
+                                    }
                                 }
                             }
                             .padding()
@@ -292,8 +300,8 @@ struct DayCell: View {
         let dailyChecklists = checklists.filter { isSameDay($0.dueDate, as: date) }
         
         let hasEvents = !dailyMilestones.isEmpty || !dailyChecklists.isEmpty
-        let tagColor = dailyMilestones.compactMap { $0.tag?.color }.first
-            ?? dailyChecklists.compactMap { $0.tag?.color }.first
+        let tagColor = dailyMilestones.compactMap { $0.tags.first?.color }.first
+            ?? dailyChecklists.compactMap { $0.tags.first?.color }.first
             ?? theme.accent
 
         Button(action: action) {

@@ -109,7 +109,7 @@ struct RecordsView: View {
     }
 
     private var milestoneSheetContent: some View {
-        AddChecklistView(checklist: editingMilestone, theme: theme) { title, notes, dueDate, remind, items, isDone, tag in
+        AddChecklistView(checklist: editingMilestone, theme: theme) { title, notes, dueDate, remind, items, isDone, tags in
             saveMilestone(
                 original: editingMilestone,
                 title: title,
@@ -118,20 +118,20 @@ struct RecordsView: View {
                 remind: remind,
                 items: items,
                 isDone: isDone,
-                tag: tag
+                tags: tags
             )
         }
     }
 
     private var simpleSheetContent: some View {
-        AddSimpleChecklistView(checklist: editingSimple, theme: theme) { title, notes, dueDate, remind, tag in
+        AddSimpleChecklistView(checklist: editingSimple, theme: theme) { title, notes, dueDate, remind, tags in
             saveSimple(
                 original: editingSimple,
                 title: title,
                 notes: notes,
                 dueDate: dueDate,
                 remind: remind,
-                tag: tag
+                tags: tags
             )
         }
     }
@@ -239,7 +239,7 @@ struct RecordsView: View {
         remind: Bool,
         items: [ChecklistItem],
         isDone: Bool,
-        tag: Tag?
+        tags: [Tag]
     ) {
         let checklist: Checklist
         if let original {
@@ -249,7 +249,7 @@ struct RecordsView: View {
             checklist.dueDate = dueDate
             checklist.remind = remind
             checklist.isDone = isDone
-            checklist.tag = tag
+            checklist.tags = tags
         } else {
             checklist = Checklist(
                 title: title,
@@ -257,7 +257,7 @@ struct RecordsView: View {
                 dueDate: dueDate,
                 remind: remind,
                 items: [],
-                tag: tag
+                tags: tags
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
@@ -280,7 +280,7 @@ struct RecordsView: View {
         notes: String?,
         dueDate: Date?,
         remind: Bool,
-        tag: Tag?
+        tags: [Tag]
     ) {
         let checklist: SimpleChecklist
         if let original {
@@ -289,7 +289,7 @@ struct RecordsView: View {
             checklist.notes = notes
             checklist.dueDate = dueDate
             checklist.remind = remind
-            checklist.tag = tag
+            checklist.tags = tags
         } else {
             checklist = SimpleChecklist(
                 title: title,
@@ -297,7 +297,7 @@ struct RecordsView: View {
                 dueDate: dueDate,
                 remind: remind,
                 isDone: true,
-                tag: tag
+                tags: tags
             )
             modelContext.insert(checklist)
         }

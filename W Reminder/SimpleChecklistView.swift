@@ -113,7 +113,7 @@ struct SimpleChecklistView: View {
                     let active = checklists.filter { !$0.isDone }
                     let filteredActive = active.filter {
                         guard let filterTag else { return true }
-                        return $0.tag == filterTag
+                        return $0.tags.contains(filterTag)
                     }
                     let sortedActive = sort(filteredActive)
 
@@ -163,7 +163,7 @@ struct SimpleChecklistView: View {
                         notes: notes,
                         dueDate: dueDate,
                         remind: remind,
-                        tag: tag
+                        tags: tags
                     )
                 }
             }
@@ -190,7 +190,7 @@ struct SimpleChecklistView: View {
         notes: String?,
         dueDate: Date?,
         remind: Bool,
-        tag: Tag?
+        tags: [Tag]
     ) {
         let checklist: SimpleChecklist
         if let original {
@@ -199,14 +199,14 @@ struct SimpleChecklistView: View {
             checklist.notes = notes
             checklist.dueDate = dueDate
             checklist.remind = remind
-            checklist.tag = tag
+            checklist.tags = tags
         } else {
             checklist = SimpleChecklist(
                 title: title,
                 notes: notes,
                 dueDate: dueDate,
                 remind: remind,
-                tag: tag
+                tags: tags
             )
             modelContext.insert(checklist)
         }
@@ -332,7 +332,7 @@ struct AddSimpleChecklistView: View {
     @State private var dueDate: Date? = nil
     @State private var remind: Bool = true
     @State private var isSettingDueDate: Bool = false
-    @State private var selectedTag: Tag? = nil
+    @State private var selectedTags: [Tag] = []
     
     // Custom Tag Creation State
     @State private var showingCreateTag = false
@@ -341,7 +341,7 @@ struct AddSimpleChecklistView: View {
 
     var checklist: SimpleChecklist?
     let theme: Theme
-    var onSave: (String, String?, Date?, Bool, Tag?) -> Void
+    var onSave: (String, String?, Date?, Bool, [Tag]) -> Void
 
     var body: some View {
         NavigationStack {
@@ -387,32 +387,30 @@ struct AddSimpleChecklistView: View {
                                 
                                 ScrollView(.horizontal, showsIndicators: false) {
                                     HStack(spacing: 12) {
-                                        // "None" Option
-                                        Button {
-                                            withAnimation { selectedTag = nil }
-                                        } label: {
-                                            Image(systemName: "slash.circle")
-                                                .font(.title2)
-                                                .foregroundStyle(selectedTag == nil ? .white : .secondary)
-                                                .frame(width: 44, height: 44)
-                                                .background(selectedTag == nil ? theme.accent : theme.primary.opacity(0.1))
-                                                .clipShape(Circle())
-                                        }
-                                        
                                         ForEach(tags) { tag in
                                             Button {
-                                                withAnimation { selectedTag = tag }
+                                                withAnimation {
+                                                    if selectedTags.contains(where: { $0.id == tag.id }) {
+                                                        selectedTags.removeAll { $0.id == tag.id }
+                                                    } else {
+                                                        if selectedTags.count < 3 {
+                                                            selectedTags.append(tag)
+                                                        }
+                                                    }
+                                                }
                                             } label: {
-                                                Circle()
-                                                    .fill(tag.color)
-                                                    .frame(width: 44, height: 44)
+                                                Text(tag.name)
+                                                    .font(.caption.bold())
+                                                    .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
+                                                    .padding(.horizontal, 12)
+                                                    .padding(.vertical, 6)
+                                                    .background(tag.color)
+                                                    .clipShape(Capsule())
                                                     .overlay(
-                                                        Image(systemName: "checkmark")
-                                                            .font(.headline)
-                                                            .foregroundStyle(.white)
-                                                            .opacity(selectedTag == tag ? 1 : 0)
+                                                        Capsule()
+                                                            .stroke(theme.accent, lineWidth: selectedTags.contains(where: { $0.id == tag.id }) ? 3 : 0)
                                                     )
-                                                    .shadow(color: tag.color.opacity(0.3), radius: 4, y: 2)
+                                                    .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
                                             }
                                         }
                                         
@@ -421,9 +419,9 @@ struct AddSimpleChecklistView: View {
                                             showingCreateTag = true
                                         } label: {
                                             Image(systemName: "plus")
-                                                .font(.headline)
+                                                .font(.caption.bold())
                                                 .foregroundStyle(theme.accent)
-                                                .frame(width: 44, height: 44)
+                                                .frame(width: 30, height: 30)
                                                 .background(
                                                     Circle()
                                                         .stroke(theme.accent, style: StrokeStyle(lineWidth: 1, dash: [4]))
@@ -448,6 +446,9 @@ struct AddSimpleChecklistView: View {
                                     }
                                     Spacer()
                                     CustomToggle(isOn: $isSettingDueDate.animation())
+                                        .onChange(of: isSettingDueDate) { oldValue, newValue in
+                                            if newValue { remind = true }
+                                        }
                                 }
                                 .padding()
                                 .background(theme.primary.opacity(0.05))
@@ -511,7 +512,7 @@ struct AddSimpleChecklistView: View {
                                 notes.isEmpty ? nil : notes,
                                 isSettingDueDate ? (dueDate ?? Date()) : nil,
                                 isSettingDueDate ? remind : false,
-                                selectedTag
+                                selectedTags
                             )
                             dismiss()
                         } label: {
@@ -564,7 +565,9 @@ struct AddSimpleChecklistView: View {
                             Button("Create") {
                                 let tag = Tag(name: newTagName, colorHex: newTagColor.toHex())
                                 modelContext.insert(tag)
-                                selectedTag = tag
+                                if selectedTags.count < 3 {
+                                    selectedTags.append(tag)
+                                }
                                 showingCreateTag = false
                                 newTagName = ""
                             }
@@ -572,7 +575,7 @@ struct AddSimpleChecklistView: View {
                         }
                     }
                 }
-                .presentationDetents([.medium, .large])
+                .presentationDetents([.fraction(0.6), .large])
             }
         }
         .onAppear {
@@ -582,7 +585,15 @@ struct AddSimpleChecklistView: View {
                 dueDate = checklist.dueDate
                 remind = checklist.remind
                 isSettingDueDate = checklist.dueDate != nil
-                selectedTag = checklist.tag
+                selectedTags = checklist.tags
+            } else {
+                // Explicitly reset ALL state for new tasks
+                title = ""
+                notes = ""
+                dueDate = nil
+                remind = true
+                isSettingDueDate = false
+                selectedTags = []
             }
         }
     }
@@ -608,18 +619,27 @@ struct SimpleChecklistRow: View {
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    if let tag = checklist.tag {
-                        Text(tag.name)
-                            .font(.caption2.bold())
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(tag.color.opacity(0.2))
-                            .foregroundStyle(tag.color)
-                            .clipShape(Capsule())
-                    }
                     Text(checklist.title)
                         .font(.headline)
                         .strikethrough(checklist.isDone, color: .secondary)
+                    
+                    // Multi-Tag Display
+                HStack(spacing: 4) {
+                    ForEach(checklist.tags.prefix(3)) { tag in
+                        Text(tag.name)
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(tag.color)
+                            .clipShape(Capsule())
+                    }
+                    if checklist.tags.count > 3 {
+                        Text("+\(checklist.tags.count - 3)")
+                            .font(.caption2)
+                            .foregroundStyle(.secondary)
+                    }
+                }
                 }
                 if let notes = checklist.notes, !notes.isEmpty {
                     Text(notes)
@@ -691,3 +711,9 @@ struct SimpleChecklistRow: View {
         .modelContainer(for: [SimpleChecklist.self], inMemory: true)
 }
 
+
+private extension View {
+    func isDarkColor(_ color: Color) -> Bool {
+        return true 
+    }
+}

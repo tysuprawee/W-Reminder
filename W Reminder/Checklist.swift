@@ -37,7 +37,7 @@ final class Checklist {
     // Updated: Use helper or just manual check for "overdue".
     // Computed properties are not persisted but useful in views.
     
-    @Relationship var tag: Tag?
+    @Relationship var tags: [Tag] = []
 
     init(
         title: String,
@@ -45,7 +45,7 @@ final class Checklist {
         dueDate: Date? = nil,
         remind: Bool = false,
         items: [ChecklistItem] = [],
-        tag: Tag? = nil
+        tags: [Tag] = []
     ) {
         self.title = title
         self.notes = notes
@@ -53,7 +53,7 @@ final class Checklist {
         self.dueDate = dueDate
         self.remind = remind
         self.items = items
-        self.tag = tag
+        self.tags = tags
     }
 }
 
@@ -67,22 +67,22 @@ final class SimpleChecklist {
     var remind: Bool
     var isDone: Bool = false
     
-    @Relationship var tag: Tag?
+    @Relationship var tags: [Tag] = []
 
     init(
         title: String,
         notes: String? = nil,
         dueDate: Date? = nil,
         remind: Bool = false,
-        isDone: Bool = false, // Keep this parameter as it was in the original SimpleChecklist init
-        tag: Tag? = nil
+        isDone: Bool = false,
+        tags: [Tag] = []
     ) {
         self.title = title
         self.notes = notes
         self.createdAt = Date()
         self.dueDate = dueDate
         self.remind = remind
-        self.isDone = isDone // Assign the parameter
-        self.tag = tag
+        self.isDone = isDone
+        self.tags = tags
     }
 }
