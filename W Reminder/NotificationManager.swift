@@ -6,10 +6,14 @@
 import Foundation
 import UserNotifications
 
-final class NotificationManager {
+/// Handles all local notification work for the app, including foreground delivery.
+final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     static let shared = NotificationManager()
 
-    private init() {}
+    private override init() {
+        super.init()
+        UNUserNotificationCenter.current().delegate = self
+    }
 
     func requestAuthorization() {
         UNUserNotificationCenter.current()
@@ -22,50 +26,114 @@ final class NotificationManager {
             }
     }
 
-    func scheduleNotification(for reminder: Reminder) {
-        // Don’t schedule for past dates
-        guard reminder.dueDate > Date() else { return }
+    func scheduleNotification(for checklist: Checklist) {
+        guard checklist.remind, let dueDate = checklist.dueDate, dueDate > Date() else { return }
 
-        let content = UNMutableNotificationContent()
-        content.title = reminder.title
+        let center = UNUserNotificationCenter.current()
 
-        if let notes = reminder.notes, !notes.isEmpty {
-            content.body = notes
-        } else {
-            content.body = "You have a reminder due."
-        }
+        center.getNotificationSettings { [weak self] settings in
+            guard let self else { return }
 
-        content.sound = .default
+            guard settings.authorizationStatus == .authorized ||
+                    settings.authorizationStatus == .provisional else {
+                self.requestAuthorization()
+                return
+            }
 
-        let triggerDate = Calendar.current.dateComponents(
-            [.year, .month, .day, .hour, .minute],
-            from: reminder.dueDate
-        )
+            let content = UNMutableNotificationContent()
+            content.title = checklist.title
 
-        let trigger = UNCalendarNotificationTrigger(
-            dateMatching: triggerDate,
-            repeats: false
-        )
-
-        // ✅ Use our own UUID-based identifier
-        let request = UNNotificationRequest(
-            identifier: reminder.id.uuidString,
-            content: content,
-            trigger: trigger
-        )
-
-        UNUserNotificationCenter.current().add(request) { error in
-            if let error = error {
-                print("Error scheduling notification: \(error)")
+            if let notes = checklist.notes, !notes.isEmpty {
+                content.body = notes
             } else {
-                print("Notification scheduled for \(reminder.dueDate)")
+                content.body = "Checklist due."
+            }
+
+            content.sound = .default
+
+            let triggerDate = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: dueDate
+            )
+
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: triggerDate,
+                repeats: false
+            )
+
+            let request = UNNotificationRequest(
+                identifier: checklist.id.uuidString,
+                content: content,
+                trigger: trigger
+            )
+
+            center.add(request) { error in
+                if let error = error {
+                    print("Error scheduling notification: \(error)")
+                } else {
+                    print("Notification scheduled for \(String(describing: checklist.dueDate))")
+                }
             }
         }
     }
 
-    func cancelNotification(for reminder: Reminder) {
-        let identifier = reminder.id.uuidString   // ✅ Same identifier
+    func cancelNotification(for checklist: Checklist) {
+        let identifier = checklist.id.uuidString
         UNUserNotificationCenter.current()
             .removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+
+    func scheduleNotification(for checklist: SimpleChecklist) {
+        guard checklist.remind, let dueDate = checklist.dueDate, dueDate > Date() else { return }
+
+        let center = UNUserNotificationCenter.current()
+
+        center.getNotificationSettings { [weak self] settings in
+            guard let self else { return }
+
+            guard settings.authorizationStatus == .authorized ||
+                    settings.authorizationStatus == .provisional else {
+                self.requestAuthorization()
+                return
+            }
+
+            let content = UNMutableNotificationContent()
+            content.title = checklist.title
+            content.body = checklist.notes ?? "Checklist reminder."
+            content.sound = .default
+
+            let triggerDate = Calendar.current.dateComponents(
+                [.year, .month, .day, .hour, .minute],
+                from: dueDate
+            )
+
+            let trigger = UNCalendarNotificationTrigger(
+                dateMatching: triggerDate,
+                repeats: false
+            )
+
+            let request = UNNotificationRequest(
+                identifier: checklist.id.uuidString,
+                content: content,
+                trigger: trigger
+            )
+
+            center.add(request)
+        }
+    }
+
+    func cancelNotification(for checklist: SimpleChecklist) {
+        let identifier = checklist.id.uuidString
+        UNUserNotificationCenter.current()
+            .removePendingNotificationRequests(withIdentifiers: [identifier])
+    }
+
+    // Show notification while app is in the foreground.
+    func userNotificationCenter(
+        _ center: UNUserNotificationCenter,
+        willPresent notification: UNNotification,
+        withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
+    ) {
+        completionHandler([.banner, .sound, .badge])
     }
 }

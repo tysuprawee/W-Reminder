@@ -13,7 +13,9 @@ import UserNotifications
 struct W_ReminderApp: App {
     var sharedModelContainer: ModelContainer = {
         let schema = Schema([
-            Reminder.self,
+            Checklist.self,
+            ChecklistItem.self,
+            SimpleChecklist.self,
         ])
         let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
 
@@ -31,7 +33,7 @@ struct W_ReminderApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            RootView()
         }
         .modelContainer(sharedModelContainer)
     }

@@ -1,21 +1,14 @@
-//
-//  ContentView.swift
-//  W Reminder
-//
-//  Created by Suprawee Pongpeeradech on 11/20/25.
-//
-
 import SwiftUI
 import SwiftData
 import UserNotifications
 import UIKit
 
-struct MilestoneView: View {
+struct SimpleChecklistView: View {
     @Environment(\.modelContext) private var modelContext
-    @Query(sort: \Checklist.createdAt, order: .forward) private var checklists: [Checklist]
+    @Query(sort: \SimpleChecklist.createdAt, order: .forward) private var checklists: [SimpleChecklist]
 
-    @State private var showingAddChecklist = false
-    @State private var editingChecklist: Checklist?
+    @State private var showingAdd = false
+    @State private var editing: SimpleChecklist?
     @State private var showPermissionAlert = false
 
     let theme: Theme
@@ -26,7 +19,7 @@ struct MilestoneView: View {
                 LinearGradient(
                     colors: [
                         theme.background.opacity(0.85),
-                        theme.primary.opacity(0.08)
+                        theme.secondary.opacity(0.1)
                     ],
                     startPoint: .topLeading,
                     endPoint: .bottomTrailing
@@ -41,37 +34,35 @@ struct MilestoneView: View {
                     if active.isEmpty {
                         emptyState
                     } else {
-                        checklistList(active: active)
+                        list(active: active)
                     }
 
                     Spacer()
                 }
                 .padding()
             }
-            .navigationTitle("Milestones")
+            .navigationTitle("Checklists")
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        showingAddChecklist = true
+                        showingAdd = true
                     } label: {
                         Image(systemName: "plus")
                             .font(.headline)
                     }
                 }
             }
-            .sheet(isPresented: $showingAddChecklist) {
-                AddChecklistView(
-                    checklist: editingChecklist,
+            .sheet(isPresented: $showingAdd) {
+                AddSimpleChecklistView(
+                    checklist: editing,
                     theme: theme
-                ) { title, notes, dueDate, remind, items, isDone in
-                    saveChecklist(
-                        original: editingChecklist,
+                ) { title, notes, dueDate, remind in
+                    save(
+                        original: editing,
                         title: title,
                         notes: notes,
                         dueDate: dueDate,
-                        remind: remind,
-                        items: items,
-                        isDone: isDone
+                        remind: remind
                     )
                 }
             }
@@ -85,56 +76,44 @@ struct MilestoneView: View {
                 }
                 Button("Maybe Later", role: .cancel) {}
             } message: {
-                Text("Enable notifications in Settings to get reminder alerts.")
+                Text("Enable notifications in Settings to get checklist alerts.")
             }
         }
         .tint(theme.accent)
         .background(theme.background.ignoresSafeArea())
     }
 
-    private func saveChecklist(
-        original: Checklist?,
+    private func save(
+        original: SimpleChecklist?,
         title: String,
         notes: String?,
         dueDate: Date?,
-        remind: Bool,
-        items: [ChecklistItem],
-        isDone: Bool
+        remind: Bool
     ) {
-        let checklist: Checklist
+        let checklist: SimpleChecklist
         if let original {
             checklist = original
             checklist.title = title
             checklist.notes = notes
             checklist.dueDate = dueDate
             checklist.remind = remind
-            checklist.isDone = isDone
         } else {
-            checklist = Checklist(
+            checklist = SimpleChecklist(
                 title: title,
                 notes: notes,
                 dueDate: dueDate,
                 remind: remind
             )
-            checklist.isDone = isDone
             modelContext.insert(checklist)
         }
-
-        // sync items with relationship and preserve ordering
-        let sortedItems = items.enumerated().map { idx, item -> ChecklistItem in
-            item.position = idx
-            item.checklist = checklist
-            return item
-        }
-        checklist.items = sortedItems
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
         verifyNotificationPermission()
-        editingChecklist = nil
+        editing = nil
     }
 
-    private func deleteChecklists(offsets: IndexSet, in source: [Checklist]) {
+    private func delete(offsets: IndexSet, in source: [SimpleChecklist]) {
         withAnimation {
             for index in offsets {
                 let checklist = source[index]
@@ -144,48 +123,24 @@ struct MilestoneView: View {
         }
     }
 
-    private func verifyNotificationPermission() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            if settings.authorizationStatus != .authorized &&
-                settings.authorizationStatus != .provisional {
-                DispatchQueue.main.async {
-                    showPermissionAlert = true
-                }
-            }
-        }
-    }
-
-    private func openAppSettings() {
-        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
-        UIApplication.shared.open(url)
-    }
-
-    private var header: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Stay on top of things")
-                .font(.title2.bold())
-            Text("Create reminders with notes and get notified when they’re due.")
-                .foregroundStyle(theme.secondary)
-        }
-    }
-
-    private func checklistList(active: [Checklist]) -> some View {
+    private func list(active: [SimpleChecklist]) -> some View {
         List {
             ForEach(active) { checklist in
-                ChecklistRow(
-                    checklist: checklist,
-                    theme: theme,
-                    onEdit: {
-                        editingChecklist = checklist
-                        showingAddChecklist = true
+                SimpleChecklistRow(checklist: checklist, theme: theme) {
+                    withAnimation(.easeInOut) {
+                        checklist.isDone.toggle()
                     }
-                )
+                    NotificationManager.shared.cancelNotification(for: checklist)
+                } onEdit: {
+                    editing = checklist
+                    showingAdd = true
+                }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
             }
             .onDelete { offsets in
-                deleteChecklists(offsets: offsets, in: active)
+                delete(offsets: offsets, in: active)
             }
         }
         .listStyle(.plain)
@@ -194,9 +149,18 @@ struct MilestoneView: View {
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
     }
 
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Quick checklists")
+                .font(.title2.bold())
+            Text("Single-step tasks with optional reminders.")
+                .foregroundStyle(theme.secondary)
+        }
+    }
+
     private var emptyState: some View {
         VStack(spacing: 12) {
-            Image(systemName: "bell.badge")
+            Image(systemName: "checklist")
                 .font(.system(size: 44))
                 .foregroundStyle(theme.accent)
                 .symbolRenderingMode(.multicolor)
@@ -215,21 +179,35 @@ struct MilestoneView: View {
                 .stroke(theme.accent.opacity(0.2), lineWidth: 1)
         )
     }
+
+    private func verifyNotificationPermission() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            if settings.authorizationStatus != .authorized &&
+                settings.authorizationStatus != .provisional {
+                DispatchQueue.main.async {
+                    showPermissionAlert = true
+                }
+            }
+        }
+    }
+
+    private func openAppSettings() {
+        guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
+        UIApplication.shared.open(url)
+    }
 }
 
-struct AddChecklistView: View {
+struct AddSimpleChecklistView: View {
     @Environment(\.dismiss) private var dismiss
 
     @State private var title: String = ""
     @State private var notes: String = ""
     @State private var dueDate: Date? = nil
     @State private var remind: Bool = true
-    @State private var items: [ChecklistItem] = [ChecklistItem(text: "New item")]
-    @State private var isDone: Bool = false
 
-    var checklist: Checklist?
+    var checklist: SimpleChecklist?
     let theme: Theme
-    var onSave: (String, String?, Date?, Bool, [ChecklistItem], Bool) -> Void
+    var onSave: (String, String?, Date?, Bool) -> Void
 
     var body: some View {
         NavigationStack {
@@ -252,34 +230,6 @@ struct AddChecklistView: View {
                     .environment(\.timeZone, .current)
                     .opacity(remind ? 1 : 0.5)
                     .disabled(!remind)
-
-                    Toggle("Mark as done", isOn: $isDone)
-                }
-
-                Section("Items") {
-                    ForEach($items) { $item in
-                        HStack {
-                            Button {
-                                item.isDone.toggle()
-                            } label: {
-                                Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
-                                    .foregroundStyle(item.isDone ? theme.accent : .secondary)
-                            }
-                            .buttonStyle(.plain)
-
-                            TextField("Task", text: $item.text)
-                        }
-                    }
-                    .onDelete { offsets in
-                        items.remove(atOffsets: offsets)
-                    }
-
-                    Button {
-                        let newPosition = (items.map { $0.position }.max() ?? -1) + 1
-                        items.append(ChecklistItem(text: "New item", position: newPosition))
-                    } label: {
-                        Label("Add item", systemImage: "plus.circle")
-                    }
                 }
             }
             .scrollContentBackground(.hidden)
@@ -302,9 +252,7 @@ struct AddChecklistView: View {
                             title,
                             notes.isEmpty ? nil : notes,
                             remind ? dueDate : nil,
-                            remind,
-                            items.filter { !$0.text.trimmingCharacters(in: .whitespaces).isEmpty },
-                            isDone
+                            remind
                         )
                         dismiss()
                     }
@@ -318,82 +266,63 @@ struct AddChecklistView: View {
                 notes = checklist.notes ?? ""
                 dueDate = checklist.dueDate
                 remind = checklist.remind
-                isDone = checklist.isDone
-                items = checklist.items.sorted { $0.position < $1.position }
-                if items.isEmpty {
-                    items = [ChecklistItem(text: "New item")]
-                }
             }
         }
     }
 }
 
-#Preview {
-    MilestoneView(theme: .default)
-        .modelContainer(for: [Checklist.self, ChecklistItem.self], inMemory: true)
-}
-
-struct ChecklistRow: View {
-    let checklist: Checklist
+struct SimpleChecklistRow: View {
+    let checklist: SimpleChecklist
     let theme: Theme
-    var onEdit: () -> Void = {}
+    var onToggleDone: () -> Void
+    var onEdit: () -> Void
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
+        HStack(alignment: .firstTextBaseline, spacing: 12) {
+            Button {
+                withAnimation(.easeInOut) {
+                    onToggleDone()
+                }
+            } label: {
+                Image(systemName: checklist.isDone ? "checkmark.circle.fill" : "circle")
+                    .foregroundStyle(checklist.isDone ? theme.accent : .secondary)
+            }
+            .buttonStyle(.plain)
+
+            VStack(alignment: .leading, spacing: 4) {
                 Text(checklist.title)
                     .font(.headline)
-                Spacer()
+                    .strikethrough(checklist.isDone, color: .secondary)
+                if let notes = checklist.notes, !notes.isEmpty {
+                    Text(notes)
+                        .font(.footnote)
+                        .foregroundStyle(.secondary)
+                }
                 if let due = checklist.dueDate {
-                    Text(due, format: .dateTime.hour().minute())
-                        .font(.subheadline.bold())
-                        .foregroundStyle(theme.accent)
+                    HStack(spacing: 6) {
+                        Text(due, format: .dateTime.day().month().hour().minute())
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                        Spacer()
+                        Text(timeRemaining(until: due))
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                    }
                 }
             }
-
-            if let due = checklist.dueDate {
-                HStack(spacing: 6) {
-                    Text(due, format: .dateTime.day().month().year())
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                    Spacer()
-                    Text(timeRemaining(until: due))
-                        .font(.footnote)
-                        .foregroundStyle(.secondary)
-                }
+            Spacer()
+            Button {
+                onEdit()
+            } label: {
+                Image(systemName: "pencil")
             }
-
-            if let notes = checklist.notes, !notes.isEmpty {
-                Text(notes)
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-            }
-
-            ProgressView(value: progress)
-                .tint(theme.accent)
-
-            HStack {
-                Text("\(completedCount)/\(checklist.items.count) done")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                Button("Edit") { onEdit() }
-                    .font(.caption)
-            }
+            .buttonStyle(.plain)
         }
         .padding()
         .background(theme.background.opacity(0.9))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .transition(.opacity.combined(with: .move(edge: .trailing)))
         .animation(.easeInOut, value: checklist.isDone)
-    }
-
-    private var completedCount: Int {
-        checklist.items.filter { $0.isDone }.count
-    }
-
-    private var progress: Double {
-        guard !checklist.items.isEmpty else { return 0 }
-        return Double(completedCount) / Double(checklist.items.count)
     }
 
     private func timeRemaining(until date: Date) -> String {
@@ -411,3 +340,9 @@ struct ChecklistRow: View {
         }
     }
 }
+
+#Preview {
+    SimpleChecklistView(theme: .default)
+        .modelContainer(for: [SimpleChecklist.self], inMemory: true)
+}
+
