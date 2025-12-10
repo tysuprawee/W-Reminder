@@ -134,6 +134,7 @@ struct SimpleChecklistView: View {
                     HStack {
                         Spacer()
                         Button {
+                            editing = nil
                             showingAdd = true
                         } label: {
                             Image(systemName: "plus")
@@ -152,13 +153,30 @@ struct SimpleChecklistView: View {
             }
             // Hide standard navigation bar
             .toolbar(.hidden, for: .navigationBar)
+            // Sheet for Creating New Simple Checklist
             .sheet(isPresented: $showingAdd) {
                 AddSimpleChecklistView(
-                    checklist: editing,
+                    checklist: nil,
                     theme: theme
-                ) { title, notes, dueDate, remind, tag in
+                ) { title, notes, dueDate, remind, tags in
                     save(
-                        original: editing,
+                        original: nil,
+                        title: title,
+                        notes: notes,
+                        dueDate: dueDate,
+                        remind: remind,
+                        tags: tags
+                    )
+                }
+            }
+            // Sheet for Editing Existing Simple Checklist
+            .sheet(item: $editing) { checklist in
+                AddSimpleChecklistView(
+                    checklist: checklist,
+                    theme: theme
+                ) { title, notes, dueDate, remind, tags in
+                    save(
+                        original: checklist,
                         title: title,
                         notes: notes,
                         dueDate: dueDate,
@@ -236,8 +254,8 @@ struct SimpleChecklistView: View {
                     }
                     NotificationManager.shared.cancelNotification(for: checklist)
                 } onEdit: {
+                    print("DEBUG: Editing simple checklist \(checklist.title)")
                     editing = checklist
-                    showingAdd = true
                 }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
@@ -412,6 +430,18 @@ struct AddSimpleChecklistView: View {
                                                     )
                                                     .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
                                             }
+                                            .contextMenu {
+                                                Button(role: .destructive) {
+                                                    withAnimation {
+                                                        if let idx = selectedTags.firstIndex(where: { $0.id == tag.id }) {
+                                                            selectedTags.remove(at: idx)
+                                                        }
+                                                        modelContext.delete(tag)
+                                                    }
+                                                } label: {
+                                                    Label("Delete Tag", systemImage: "trash")
+                                                }
+                                            }
                                         }
                                         
                                         // "Add Tag" Button
@@ -466,6 +496,7 @@ struct AddSimpleChecklistView: View {
                                         )
                                         .datePickerStyle(.graphical)
                                         .tint(theme.accent)
+                                        .frame(maxHeight: 400) // Constrain height
                                         
                                         Divider()
                                         
@@ -579,7 +610,9 @@ struct AddSimpleChecklistView: View {
             }
         }
         .onAppear {
+            print("DEBUG: AddSimpleChecklistView appeared. Checklist: \(String(describing: checklist?.title)), ID: \(String(describing: checklist?.id))")
             if let checklist {
+                print("DEBUG: Loading existing SimpleChecklist: \(checklist.title)")
                 title = checklist.title
                 notes = checklist.notes ?? ""
                 dueDate = checklist.dueDate

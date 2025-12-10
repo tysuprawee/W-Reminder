@@ -145,6 +145,7 @@ struct MilestoneView: View {
                     HStack {
                         Spacer()
                         Button {
+                            editingChecklist = nil
                             showingAddChecklist = true
                         } label: {
                             Image(systemName: "plus")
@@ -163,13 +164,32 @@ struct MilestoneView: View {
             }
             // Hide standard navigation bar
             .toolbar(.hidden, for: .navigationBar)
+            // Sheet for Creating New Checklist
             .sheet(isPresented: $showingAddChecklist) {
                 AddChecklistView(
-                    checklist: editingChecklist,
+                    checklist: nil,
                     theme: theme
                 ) { title, notes, dueDate, remind, items, isDone, tags in
                     saveChecklist(
-                        original: editingChecklist,
+                        original: nil,
+                        title: title,
+                        notes: notes,
+                        dueDate: dueDate,
+                        remind: remind,
+                        items: items,
+                        isDone: isDone,
+                        tags: tags
+                    )
+                }
+            }
+            // Sheet for Editing Existing Checklist
+            .sheet(item: $editingChecklist) { checklist in
+                AddChecklistView(
+                    checklist: checklist,
+                    theme: theme
+                ) { title, notes, dueDate, remind, items, isDone, tags in
+                    saveChecklist(
+                        original: checklist,
                         title: title,
                         notes: notes,
                         dueDate: dueDate,
@@ -284,8 +304,8 @@ struct MilestoneView: View {
                     checklist: checklist,
                     theme: theme,
                     onEdit: {
+                        print("DEBUG: Editing checklist \(checklist.title)")
                         editingChecklist = checklist
-                        showingAddChecklist = true
                     }
                 )
                 .listRowSeparator(.hidden)
@@ -348,6 +368,7 @@ struct AddChecklistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var tags: [Tag]
+
 
     @State private var title: String = ""
     @State private var notes: String = ""
@@ -436,7 +457,9 @@ struct AddChecklistView: View {
             }
         }
         .onAppear {
+            print("DEBUG: AddChecklistView appeared. Checklist: \(String(describing: checklist?.title)), ID: \(String(describing: checklist?.id))")
             if let checklist {
+                print("DEBUG: Loading existing checklist: \(checklist.title)")
                 title = checklist.title
                 notes = checklist.notes ?? ""
                 dueDate = checklist.dueDate
@@ -448,6 +471,8 @@ struct AddChecklistView: View {
                     items = [ChecklistItem(text: "", position: 0)]
                 }
                 selectedTags = checklist.tags
+                print("DEBUG: Loaded checklist tags: \(checklist.tags.map { $0.name }) IDs: \(checklist.tags.map { $0.id })")
+                print("DEBUG: Query tags count: \(tags.count)")
             } else {
                 // Explicitly reset ALL state for new tasks
                 title = ""
@@ -526,6 +551,18 @@ struct AddChecklistView: View {
                                     )
                                     .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
                             }
+                            .contextMenu {
+                                Button(role: .destructive) {
+                                    withAnimation {
+                                        if let idx = selectedTags.firstIndex(where: { $0.id == tag.id }) {
+                                            selectedTags.remove(at: idx)
+                                        }
+                                        modelContext.delete(tag)
+                                    }
+                                } label: {
+                                    Label("Delete Tag", systemImage: "trash")
+                                }
+                            }
                         }
                         
                         Button {
@@ -580,6 +617,7 @@ struct AddChecklistView: View {
                     )
                     .datePickerStyle(.graphical)
                     .tint(theme.accent)
+                    .frame(maxHeight: 400) // Constrain height to prevent NaN layout issues
                     
                     Divider()
                     

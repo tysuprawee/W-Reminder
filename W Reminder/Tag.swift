@@ -19,6 +19,7 @@ final class Tag {
     init(name: String, colorHex: String) {
         self.name = name
         self.colorHex = colorHex
+    
     }
     
     var color: Color {

@@ -46,11 +46,31 @@ struct RecordsView: View {
             }
             .navigationTitle("Records")
             .toolbar { toolbarContent }
-            .sheet(isPresented: $showMilestoneSheet) {
-                milestoneSheetContent
+            .sheet(item: $editingMilestone) { checklist in
+                AddChecklistView(checklist: checklist, theme: theme) { title, notes, dueDate, remind, items, isDone, tags in
+                    saveMilestone(
+                        original: checklist,
+                        title: title,
+                        notes: notes,
+                        dueDate: dueDate,
+                        remind: remind,
+                        items: items,
+                        isDone: isDone,
+                        tags: tags
+                    )
+                }
             }
-            .sheet(isPresented: $showSimpleSheet) {
-                simpleSheetContent
+            .sheet(item: $editingSimple) { checklist in
+                AddSimpleChecklistView(checklist: checklist, theme: theme) { title, notes, dueDate, remind, tags in
+                    saveSimple(
+                        original: checklist,
+                        title: title,
+                        notes: notes,
+                        dueDate: dueDate,
+                        remind: remind,
+                        tags: tags
+                    )
+                }
             }
             .alert("Clear milestone records?", isPresented: $confirmClearMilestones) {
                 Button("Delete", role: .destructive) {
@@ -121,6 +141,7 @@ struct RecordsView: View {
                 tags: tags
             )
         }
+        .id(editingMilestone?.id)
     }
 
     private var simpleSheetContent: some View {
@@ -134,6 +155,7 @@ struct RecordsView: View {
                 tags: tags
             )
         }
+        .id(editingSimple?.id)
     }
 
     // MARK: - Content
@@ -157,7 +179,6 @@ struct RecordsView: View {
                             theme: theme,
                             onEdit: {
                                 editingMilestone = checklist
-                                showMilestoneSheet = true
                             }
                         )
                         .listRowSeparator(.hidden)
@@ -180,7 +201,6 @@ struct RecordsView: View {
                             },
                             onEdit: {
                                 editingSimple = checklist
-                                showSimpleSheet = true
                             }
                         )
                         .listRowSeparator(.hidden)
