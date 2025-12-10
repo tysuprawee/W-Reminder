@@ -1,5 +1,7 @@
 # W Reminder
 
+![Version](https://img.shields.io/badge/version-1.01%20beta-blue)
+
 A modern, beautifully designed task management and reminder app for iOS, built with SwiftUI and SwiftData.
 
 ## Features

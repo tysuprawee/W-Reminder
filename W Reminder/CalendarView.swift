@@ -7,15 +7,19 @@
 
 import SwiftUI
 import SwiftData
+import UserNotifications
 
 struct CalendarView: View {
     let theme: Theme
 
+    @Environment(\.modelContext) private var modelContext
     @Query(sort: \Checklist.dueDate, order: .forward) private var milestones: [Checklist]
     @Query(sort: \SimpleChecklist.dueDate, order: .forward) private var checklists: [SimpleChecklist]
 
     @State private var monthOffset = 0 // current month offset
     @State private var selectedDate: Date = Date()
+    @State private var editingMilestone: Checklist?
+    @State private var editingSimple: SimpleChecklist?
 
     private var calendar: Calendar { Calendar.current }
     
@@ -212,23 +216,13 @@ struct CalendarView: View {
                             .padding(.horizontal)
                         
                         ForEach(dailyMilestones) { milestone in
-                            HStack {
-                                Image(systemName: milestone.isDone ? "flag.checkered" : "flag")
-                                Text(milestone.title)
-                                Spacer()
-                                if !milestone.tags.isEmpty {
-                                    HStack(spacing: 4) {
-                                        ForEach(milestone.tags.prefix(3)) { tag in
-                                            Circle()
-                                                .fill(tag.color)
-                                                .frame(width: 8, height: 8)
-                                        }
-                                    }
+                            ChecklistRow(
+                                checklist: milestone,
+                                theme: theme,
+                                onEdit: {
+                                    editingMilestone = milestone
                                 }
-                            }
-                            .padding()
-                            .background(theme.background.opacity(0.8))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            )
                             .padding(.horizontal)
                         }
                     }
@@ -240,27 +234,55 @@ struct CalendarView: View {
                             .padding(.horizontal)
                         
                         ForEach(dailyChecklists) { checklist in
-                            HStack {
-                                Image(systemName: checklist.isDone ? "checkmark.circle.fill" : "circle")
-                                Text(checklist.title)
-                                Spacer()
-                                if !checklist.tags.isEmpty {
-                                   HStack(spacing: 4) {
-                                        ForEach(checklist.tags.prefix(3)) { tag in
-                                            Circle()
-                                                .fill(tag.color)
-                                                .frame(width: 8, height: 8)
-                                        }
+                            SimpleChecklistRow(
+                                checklist: checklist,
+                                theme: theme,
+                                onToggleDone: {
+                                    withAnimation(.easeInOut) {
+                                        checklist.isDone.toggle()
                                     }
+                                    NotificationManager.shared.cancelNotification(for: checklist)
+                                },
+                                onEdit: {
+                                    editingSimple = checklist
                                 }
-                            }
-                            .padding()
-                            .background(theme.background.opacity(0.8))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                            )
                             .padding(.horizontal)
                         }
                     }
                 }
+            }
+        }
+        .sheet(item: $editingMilestone) { checklist in
+            AddChecklistView(
+                checklist: checklist,
+                theme: theme
+            ) { title, notes, dueDate, remind, items, isDone, tags in
+                saveMilestone(
+                    original: checklist,
+                    title: title,
+                    notes: notes,
+                    dueDate: dueDate,
+                    remind: remind,
+                    items: items,
+                    isDone: isDone,
+                    tags: tags
+                )
+            }
+        }
+        .sheet(item: $editingSimple) { checklist in
+            AddSimpleChecklistView(
+                checklist: checklist,
+                theme: theme
+            ) { title, notes, dueDate, remind, tags in
+                saveSimple(
+                    original: checklist,
+                    title: title,
+                    notes: notes,
+                    dueDate: dueDate,
+                    remind: remind,
+                    tags: tags
+                )
             }
         }
     }
@@ -269,6 +291,84 @@ struct CalendarView: View {
         let milestoneDates = milestones.compactMap { $0.dueDate }
         let checklistDates = checklists.compactMap { $0.dueDate }
         return Set(milestoneDates + checklistDates)
+    }
+
+    // MARK: - Actions
+    
+    private func saveMilestone(
+        original: Checklist?,
+        title: String,
+        notes: String?,
+        dueDate: Date?,
+        remind: Bool,
+        items: [ChecklistItem],
+        isDone: Bool,
+        tags: [Tag]
+    ) {
+        let checklist: Checklist
+        if let original {
+            checklist = original
+            checklist.title = title
+            checklist.notes = notes
+            checklist.dueDate = dueDate
+            checklist.remind = remind
+            checklist.isDone = isDone
+            checklist.tags = tags
+        } else {
+            checklist = Checklist(
+                title: title,
+                notes: notes,
+                dueDate: dueDate,
+                remind: remind,
+                items: [],
+                tags: tags
+            )
+            checklist.isDone = isDone
+            modelContext.insert(checklist)
+        }
+
+        let sortedItems = items.enumerated().map { idx, item -> ChecklistItem in
+            item.position = idx
+            item.checklist = checklist
+            return item
+        }
+        checklist.items = sortedItems
+
+        NotificationManager.shared.cancelNotification(for: checklist)
+        NotificationManager.shared.scheduleNotification(for: checklist)
+        editingMilestone = nil
+    }
+
+    private func saveSimple(
+        original: SimpleChecklist?,
+        title: String,
+        notes: String?,
+        dueDate: Date?,
+        remind: Bool,
+        tags: [Tag]
+    ) {
+        let checklist: SimpleChecklist
+        if let original {
+            checklist = original
+            checklist.title = title
+            checklist.notes = notes
+            checklist.dueDate = dueDate
+            checklist.remind = remind
+            checklist.tags = tags
+        } else {
+            checklist = SimpleChecklist(
+                title: title,
+                notes: notes,
+                dueDate: dueDate,
+                remind: remind,
+                tags: tags
+            )
+            modelContext.insert(checklist)
+        }
+
+        NotificationManager.shared.cancelNotification(for: checklist)
+        NotificationManager.shared.scheduleNotification(for: checklist)
+        editingSimple = nil
     }
 
     private func isSameDay(_ date1: Date?, as date2: Date) -> Bool {

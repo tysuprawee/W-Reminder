@@ -102,6 +102,16 @@ struct SettingsView: View {
                         .buttonStyle(.plain)
                     }
                 }
+
+                Section("About") {
+                    HStack {
+                        Label("Version", systemImage: "info.circle")
+                        Spacer()
+                        Text("1.01 beta")
+                            .foregroundStyle(.secondary)
+                            .font(.subheadline)
+                    }
+                }
             }
             .navigationTitle("Settings")
             .onAppear {
