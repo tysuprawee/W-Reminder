@@ -224,6 +224,16 @@ struct CalendarView: View {
                                 }
                             )
                             .padding(.horizontal)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    withAnimation {
+                                        milestone.isStarred.toggle()
+                                    }
+                                } label: {
+                                    Label(milestone.isStarred ? "Unstar" : "Star", systemImage: milestone.isStarred ? "star.slash" : "star.fill")
+                                }
+                                .tint(theme.accent)
+                            }
                         }
                     }
 
@@ -248,6 +258,16 @@ struct CalendarView: View {
                                 }
                             )
                             .padding(.horizontal)
+                            .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                                Button {
+                                    withAnimation {
+                                        checklist.isStarred.toggle()
+                                    }
+                                } label: {
+                                    Label(checklist.isStarred ? "Unstar" : "Star", systemImage: checklist.isStarred ? "star.slash" : "star.fill")
+                                }
+                                .tint(theme.accent)
+                            }
                         }
                     }
                 }

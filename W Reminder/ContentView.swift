@@ -23,6 +23,7 @@ struct MilestoneView: View {
     @State private var showPermissionAlert = false
     @State private var sortOption: SortOption = .manual
     @State private var filterTag: Tag? = nil // nil = all
+    @State private var showOnlyStarred = false
 
     enum SortOption: Identifiable, CaseIterable {
         case manual
@@ -61,6 +62,27 @@ struct MilestoneView: View {
                         }
                         
                         Spacer()
+                        
+                        // Star Filter Button
+                        Button {
+                            withAnimation {
+                                showOnlyStarred.toggle()
+                            }
+                        } label: {
+                            Image(systemName: showOnlyStarred ? "star.fill" : "star")
+                                .font(.headline)
+                                .foregroundStyle(showOnlyStarred ? theme.accent : theme.primary)
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(theme.accent.opacity(showOnlyStarred ? 0.5 : 0.2), lineWidth: showOnlyStarred ? 2 : 1)
+                                )
+                        }
                         
                         // Custom Filter Button
                         Menu {
@@ -131,7 +153,8 @@ struct MilestoneView: View {
                              guard let filterTag else { return true }
                              return $0.tags.contains(where: { $0.id == filterTag.id })
                          }
-                         let sortedActive = sort(filteredActive)
+                         let starredFiltered = showOnlyStarred ? filteredActive.filter { $0.isStarred } : filteredActive
+                         let sortedActive = sort(starredFiltered)
                          
                          if sortedActive.isEmpty {
                              emptyState
@@ -321,6 +344,16 @@ struct MilestoneView: View {
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        withAnimation {
+                            checklist.isStarred.toggle()
+                        }
+                    } label: {
+                        Label(checklist.isStarred ? "Unstar" : "Star", systemImage: checklist.isStarred ? "star.slash" : "star.fill")
+                    }
+                    .tint(theme.accent)
+                }
             }
             .onDelete { offsets in
                 deleteChecklists(offsets: offsets, in: active)
@@ -378,12 +411,15 @@ struct MilestoneView: View {
         }
         .frame(maxWidth: .infinity)
         .padding()
-        .background(theme.background.opacity(0.8))
-        .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 16, style: .continuous)
-                .stroke(theme.accent.opacity(0.2), lineWidth: 1)
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(theme.background)
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(theme.accent.opacity(0.2), lineWidth: 1)
+                )
         )
+        .shadow(color: .black.opacity(0.05), radius: 5, x: 0, y: 2)
     }
 }
 
@@ -852,9 +888,9 @@ struct ChecklistRow: View {
             }
         }
         .padding()
-        .background(theme.background.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
-        .animation(.easeInOut, value: checklist.isDone)
+        .background(cardBackground)
+        .shadow(color: checklist.isStarred ? theme.accent.opacity(0.25) : .black.opacity(0.05), radius: checklist.isStarred ? 8 : 5, x: 0, y: 2)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: checklist.isStarred)
         .contextMenu {
             Button {
                 onEdit()
@@ -871,6 +907,20 @@ struct ChecklistRow: View {
     private var progress: Double {
         guard !checklist.items.isEmpty else { return 0 }
         return Double(completedCount) / Double(checklist.items.count)
+    }
+    
+    // Background styling helper
+    private var cardBackground: some View {
+        RoundedRectangle(cornerRadius: 12, style: .continuous)
+            .fill(
+                checklist.isStarred 
+                    ? theme.accent.opacity(0.12)
+                    : theme.background
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 12, style: .continuous)
+                    .stroke(checklist.isStarred ? theme.accent : Color.clear, lineWidth: checklist.isStarred ? 2.5 : 0)
+            )
     }
 
     private func timeRemaining(until date: Date) -> String {

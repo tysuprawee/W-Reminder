@@ -4,8 +4,9 @@
 //
 
 import SwiftUI
+import SwiftData
 import UserNotifications
-import UIKit
+import AVFoundation
 
 struct RootView: View {
     @AppStorage("selectedThemeId") private var selectedThemeId: String = Theme.default.id
@@ -48,6 +49,7 @@ struct RootView: View {
 struct SettingsView: View {
     @Binding var selectedThemeId: String
     @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
+    @AppStorage("notificationSound") private var notificationSound = NotificationSound.default
 
     let theme: Theme
 
@@ -75,6 +77,28 @@ struct SettingsView: View {
                             openAppSettings()
                         }
                         .buttonStyle(.bordered)
+                    }
+                }
+
+                Section("Notification Sound") {
+                    HStack {
+                        Picker("Sound", selection: $notificationSound) {
+                            ForEach(NotificationSound.allCases) { sound in
+                                Text(sound.rawValue).tag(sound)
+                            }
+                        }
+                        .pickerStyle(.menu)
+                        
+                        Spacer()
+                        
+                        Button {
+                            playPreviewSound()
+                        } label: {
+                            Label("Preview", systemImage: "play.circle.fill")
+                                .font(.subheadline)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(theme.accent)
                     }
                 }
 
@@ -143,7 +167,27 @@ struct SettingsView: View {
             return .secondary
         }
     }
-
+    
+    private func playPreviewSound() {
+        // Play system sound based on selected notification sound
+        let soundID: SystemSoundID
+        
+        switch notificationSound {
+        case .default:
+            soundID = 1007 // SMS Received 1
+        case .bell:
+            soundID = 1013 // SMS Received 5
+        case .chime:
+            soundID = 1016 // SMS Received 6
+        case .alert:
+            soundID = 1005 // New Mail
+        case .ping:
+            soundID = 1003 // SMS Received 3
+        }
+        
+        AudioServicesPlaySystemSound(soundID)
+    }
+    
     private func refreshNotificationStatus() {
         UNUserNotificationCenter.current().getNotificationSettings { settings in
             DispatchQueue.main.async {
@@ -163,6 +207,26 @@ struct SettingsView: View {
             Circle().fill(theme.secondary).frame(width: 16, height: 16)
             Circle().fill(theme.accent).frame(width: 16, height: 16)
             Circle().fill(theme.background).frame(width: 16, height: 16)
+        }
+    }
+}
+
+enum NotificationSound: String, CaseIterable, Identifiable {
+    case `default` = "Default"
+    case bell = "Bell"
+    case chime = "Chime"
+    case alert = "Alert"
+    case ping = "Ping"
+    
+    var id: String { self.rawValue }
+    
+    var fileName: String? {
+        switch self {
+        case .default: return nil
+        case .bell: return "bell.caf"
+        case .chime: return "chime.caf"
+        case .alert: return "alert.caf"
+        case .ping: return "ping.caf"
         }
     }
 }

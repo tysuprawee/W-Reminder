@@ -49,7 +49,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                 content.body = "Checklist due."
             }
 
-            content.sound = .default
+            content.sound = self.getNotificationSound()
 
             let triggerDate = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute],
@@ -100,7 +100,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             let content = UNMutableNotificationContent()
             content.title = checklist.title
             content.body = checklist.notes ?? "Checklist reminder."
-            content.sound = .default
+            content.sound = self.getNotificationSound()
 
             let triggerDate = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute],
@@ -135,5 +135,19 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         withCompletionHandler completionHandler: @escaping (UNNotificationPresentationOptions) -> Void
     ) {
         completionHandler([.banner, .sound, .badge])
+    }
+    
+    // Helper to get notification sound from preferences
+    private func getNotificationSound() -> UNNotificationSound {
+        if let soundName = UserDefaults.standard.string(forKey: "notificationSound") {
+            switch soundName {
+            case "Bell": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "bell.caf"))
+            case "Chime": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "chime.caf"))
+            case "Alert": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "alert.caf"))
+            case "Ping": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "ping.caf"))
+            default: return .default
+            }
+        }
+        return .default
     }
 }

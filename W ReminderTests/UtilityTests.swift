@@ -91,5 +91,38 @@ final class UtilityTests: XCTestCase {
         
         // Then - Verify theme conforms to Identifiable
         XCTAssertEqual(theme.id, "classic")
+        
+    // MARK: - Notification Sound Tests
+    
+    func testNotificationSoundEnum() {
+        // When
+        let allSounds = NotificationSound.allCases
+        
+        // Then
+        XCTAssertEqual(allSounds.count, 5)
+        XCTAssertTrue(allSounds.contains(.default))
+        XCTAssertTrue(allSounds.contains(.bell))
+        XCTAssertTrue(allSounds.contains(.chime))
+        XCTAssertTrue(allSounds.contains(.alert))
+        XCTAssertTrue(allSounds.contains(.ping))
     }
+    
+    func testNotificationSoundFileName() {
+        // Given
+        let defaultSound = NotificationSound.default
+        let bellSound = NotificationSound.bell
+        
+        // Then
+        XCTAssertNil(defaultSound.fileName)
+        XCTAssertEqual(bellSound.fileName, "bell.caf")
+    }
+    
+    func testNotificationSoundRawValue() {
+        // Given
+        let sound = NotificationSound.chime
+        
+        // Then
+        XCTAssertEqual(sound.rawValue, "Chime")
+    }
+}
 }

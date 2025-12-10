@@ -253,6 +253,109 @@ final class ModelTests: XCTestCase {
         XCTAssertEqual(item.checklist?.title, "Parent Checklist")
     }
     
+    // MARK: - Starred Tests
+    
+    func testChecklistStarredProperty() throws {
+        // Given
+        let checklist = Checklist(
+            title: "Starred Task",
+            notes: nil,
+            dueDate: nil,
+            remind: false,
+            items: [],
+            tags: [],
+            isStarred: true
+        )
+        
+        // Then
+        XCTAssertTrue(checklist.isStarred)
+    }
+    
+    func testChecklistStarredDefaultsFalse() throws {
+        // Given
+        let checklist = Checklist(
+            title: "Unstarred Task",
+            notes: nil,
+            dueDate: nil,
+            remind: false,
+            items: [],
+            tags: []
+        )
+        
+        // Then
+        XCTAssertFalse(checklist.isStarred)
+    }
+    
+    func testChecklistToggleStar() throws {
+        // Given
+        let checklist = Checklist(
+            title: "Task",
+            notes: nil,
+            dueDate: nil,
+            remind: false,
+            items: [],
+            tags: []
+        )
+        XCTAssertFalse(checklist.isStarred)
+        
+        // When
+        checklist.isStarred.toggle()
+        
+        // Then
+        XCTAssertTrue(checklist.isStarred)
+    }
+    
+    func testSimpleChecklistStarredProperty() throws {
+        // Given
+        let checklist = SimpleChecklist(
+            title: "Starred Simple",
+            notes: nil,
+            dueDate: nil,
+            remind: false,
+            tags: [],
+            isStarred: true
+        )
+        
+        // Then
+        XCTAssertTrue(checklist.isStarred)
+    }
+    
+    func testSimpleChecklistStarredDefaultsFalse() throws {
+        // Given
+        let checklist = SimpleChecklist(
+            title: "Unstarred Simple",
+            notes: nil,
+            dueDate: nil,
+            remind: false,
+            tags: []
+        )
+        
+        // Then
+        XCTAssertFalse(checklist.isStarred)
+    }
+    
+    func testFilterStarredChecklists() throws {
+        // Given
+        let starred1 = Checklist(title: "Starred 1", notes: nil, dueDate: nil, remind: false, items: [], tags: [], isStarred: true)
+        let starred2 = Checklist(title: "Starred 2", notes: nil, dueDate: nil, remind: false, items: [], tags: [], isStarred: true)
+        let unstarred = Checklist(title: "Unstarred", notes: nil, dueDate: nil, remind: false, items: [], tags: [], isStarred: false)
+        
+        modelContext.insert(starred1)
+        modelContext.insert(starred2)
+        modelContext.insert(unstarred)
+        try modelContext.save()
+        
+        // When
+        let descriptor = FetchDescriptor<Checklist>(
+            predicate: #Predicate { $0.isStarred == true }
+        )
+        let starredChecklists = try modelContext.fetch(descriptor)
+        
+        // Then
+        XCTAssertEqual(starredChecklists.count, 2)
+        XCTAssertTrue(starredChecklists.allSatisfy { $0.isStarred })
+    }
+    
     // MARK: - SwiftData Fetch Tests
     
     func testFetchAllChecklists() throws {

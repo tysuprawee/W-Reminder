@@ -183,6 +183,16 @@ struct RecordsView: View {
                         )
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                withAnimation {
+                                    checklist.isStarred.toggle()
+                                }
+                            } label: {
+                                Label(checklist.isStarred ? "Unstar" : "Star", systemImage: checklist.isStarred ? "star.slash" : "star.fill")
+                            }
+                            .tint(theme.accent)
+                        }
                     }
                     .onDelete { offsets in
                         deleteMilestones(offsets: offsets)
@@ -205,6 +215,16 @@ struct RecordsView: View {
                         )
                         .listRowSeparator(.hidden)
                         .listRowBackground(Color.clear)
+                        .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                            Button {
+                                withAnimation {
+                                    checklist.isStarred.toggle()
+                                }
+                            } label: {
+                                Label(checklist.isStarred ? "Unstar" : "Star", systemImage: checklist.isStarred ? "star.slash" : "star.fill")
+                            }
+                            .tint(theme.accent)
+                        }
                     }
                     .onDelete { offsets in
                         deleteSimples(offsets: offsets)

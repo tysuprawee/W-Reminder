@@ -31,6 +31,8 @@ final class Checklist {
     var dueDate: Date?
     var remind: Bool
     var isDone: Bool = false
+    var isStarred: Bool = false
+    var userOrder: Int = 0
     
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.checklist) var items: [ChecklistItem] = []
     
@@ -38,7 +40,6 @@ final class Checklist {
     // Computed properties are not persisted but useful in views.
     
     @Relationship var tags: [Tag] = []
-    var userOrder: Int = 0
 
     init(
         title: String,
@@ -47,6 +48,7 @@ final class Checklist {
         remind: Bool = false,
         items: [ChecklistItem] = [],
         tags: [Tag] = [],
+        isStarred: Bool = false,
         userOrder: Int = 0
     ) {
         self.title = title
@@ -54,6 +56,7 @@ final class Checklist {
         self.createdAt = Date()
         self.dueDate = dueDate
         self.remind = remind
+        self.isStarred = isStarred
         self.items = items
         self.tags = tags
         self.userOrder = userOrder
@@ -69,6 +72,7 @@ final class SimpleChecklist {
     var dueDate: Date?
     var remind: Bool
     var isDone: Bool = false
+    var isStarred: Bool = false
     var userOrder: Int = 0
     
     @Relationship var tags: [Tag] = []
@@ -80,6 +84,7 @@ final class SimpleChecklist {
         remind: Bool = false,
         isDone: Bool = false,
         tags: [Tag] = [],
+        isStarred: Bool = false,
         userOrder: Int = 0
     ) {
         self.title = title
@@ -88,6 +93,7 @@ final class SimpleChecklist {
         self.dueDate = dueDate
         self.remind = remind
         self.isDone = isDone
+        self.isStarred = isStarred
         self.tags = tags
         self.userOrder = userOrder
     }

@@ -15,6 +15,7 @@ struct SimpleChecklistView: View {
     @State private var showPermissionAlert = false
     @State private var sortOption: SortOption = .manual
     @State private var filterTag: Tag? = nil // nil = all
+    @State private var showOnlyStarred = false
 
     enum SortOption {
         case manual
@@ -50,6 +51,27 @@ struct SimpleChecklistView: View {
                         }
                         
                         Spacer()
+                        
+                        // Star Filter Button
+                        Button {
+                            withAnimation {
+                                showOnlyStarred.toggle()
+                            }
+                        } label: {
+                            Image(systemName: showOnlyStarred ? "star.fill" : "star")
+                                .font(.headline)
+                                .foregroundStyle(showOnlyStarred ? theme.accent : theme.primary)
+                                .frame(width: 44, height: 44)
+                                .background(
+                                    Circle()
+                                        .fill(.ultraThinMaterial)
+                                        .shadow(color: .black.opacity(0.1), radius: 5, x: 0, y: 2)
+                                )
+                                .overlay(
+                                    Circle()
+                                        .stroke(theme.accent.opacity(showOnlyStarred ? 0.5 : 0.2), lineWidth: showOnlyStarred ? 2 : 1)
+                                )
+                        }
                         
                         // Custom Filter Button
                         Menu {
@@ -120,7 +142,8 @@ struct SimpleChecklistView: View {
                                 guard let filterTag else { return true }
                                 return $0.tags.contains(where: { $0.id == filterTag.id })
                             }
-                            let sortedActive = sort(filteredActive)
+                            let starredFiltered = showOnlyStarred ? filteredActive.filter { $0.isStarred } : filteredActive
+                            let sortedActive = sort(starredFiltered)
                             
                             if sortedActive.isEmpty {
                                 emptyState
@@ -257,18 +280,32 @@ struct SimpleChecklistView: View {
     private func list(active: [SimpleChecklist]) -> some View {
         List {
             ForEach(active) { checklist in
-                SimpleChecklistRow(checklist: checklist, theme: theme) {
-                    withAnimation(.easeInOut) {
-                        checklist.isDone.toggle()
+                SimpleChecklistRow(
+                    checklist: checklist,
+                    theme: theme,
+                    onToggleDone: {
+                        withAnimation(.easeInOut) {
+                            checklist.isDone.toggle()
+                        }
+                        NotificationManager.shared.cancelNotification(for: checklist)
+                    },
+                    onEdit: {
+                        print("DEBUG: Editing simple checklist \(checklist.title)")
+                        editing = checklist
                     }
-                    NotificationManager.shared.cancelNotification(for: checklist)
-                } onEdit: {
-                    print("DEBUG: Editing simple checklist \(checklist.title)")
-                    editing = checklist
-                }
-                .listRowSeparator(.hidden)
+                ).listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
+                .swipeActions(edge: .leading, allowsFullSwipe: true) {
+                    Button {
+                        withAnimation {
+                            checklist.isStarred.toggle()
+                        }
+                    } label: {
+                        Label(checklist.isStarred ? "Unstar" : "Star", systemImage: checklist.isStarred ? "star.slash" : "star.fill")
+                    }
+                    .tint(theme.accent)
+                }
             }
             .onDelete { offsets in
                 delete(offsets: offsets, in: active)
@@ -661,6 +698,7 @@ struct SimpleChecklistRow: View {
 
     var body: some View {
         HStack(alignment: .firstTextBaseline, spacing: 12) {
+            // Checkbox
             Button {
                 withAnimation(.easeInOut) {
                     onToggleDone()
@@ -722,8 +760,20 @@ struct SimpleChecklistRow: View {
             .buttonStyle(.plain)
         }
         .padding()
-        .background(theme.background.opacity(0.9))
-        .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(
+            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                .fill(
+                    checklist.isStarred 
+                        ? theme.accent.opacity(0.12)
+                        : theme.background
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .stroke(checklist.isStarred ? theme.accent : Color.clear, lineWidth: checklist.isStarred ? 2.5 : 0)
+                )
+        )
+        .shadow(color: checklist.isStarred ? theme.accent.opacity(0.25) : .black.opacity(0.05), radius: checklist.isStarred ? 8 : 5, x: 0, y: 2)
+        .animation(.spring(response: 0.3, dampingFraction: 0.7), value: checklist.isStarred)
         .transition(.opacity.combined(with: .move(edge: .trailing)))
         .animation(.easeInOut, value: checklist.isDone)
         .contextMenu {
