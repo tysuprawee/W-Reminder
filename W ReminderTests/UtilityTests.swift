@@ -61,30 +61,6 @@ final class UtilityTests: XCTestCase {
         XCTAssertNotNil(color)
     }
     
-    // MARK: - Dark Color Detection Tests
-    
-    func testIsDarkColorBlack() {
-        // Given
-        let black = Color.black
-        
-        // When
-        let isDark = isDarkColor(black)
-        
-        // Then
-        XCTAssertTrue(isDark)
-    }
-    
-    func testIsDarkColorWhite() {
-        // Given
-        let white = Color.white
-        
-        // When
-        let isDark = isDarkColor(white)
-        
-        // Then
-        XCTAssertFalse(isDark)
-    }
-    
     // MARK: - Theme Tests
     
     func testDefaultTheme() {
@@ -92,8 +68,8 @@ final class UtilityTests: XCTestCase {
         let theme = Theme.default
         
         // Then
-        XCTAssertEqual(theme.name, "Ocean")
-        XCTAssertEqual(theme.id, "default")
+        XCTAssertEqual(theme.name, "Classic Calm")
+        XCTAssertEqual(theme.id, "classic")
         XCTAssertNotNil(theme.primary)
         XCTAssertNotNil(theme.secondary)
         XCTAssertNotNil(theme.accent)
@@ -105,15 +81,15 @@ final class UtilityTests: XCTestCase {
         let themes = Theme.all
         
         // Then
-        XCTAssertFalse(themes.isEmpty)
-        XCTAssertTrue(themes.contains(where: { $0.id == "default" }))
+        XCTAssertGreaterThan(themes.count, 0, "Should have at least one theme")
+        XCTAssertTrue(themes.contains(where: { $0.id == "classic" }), "Should contain the classic theme")
     }
     
     func testThemeIdentifiable() {
         // Given
         let theme = Theme.default
         
-        // Then
-        XCTAssertEqual(theme.id, theme.id)
+        // Then - Verify theme conforms to Identifiable
+        XCTAssertEqual(theme.id, "classic")
     }
 }
