@@ -1,6 +1,8 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import SwiftData
+import UserNotifications
 import UIKit
 
 struct SimpleChecklistView: View {
@@ -11,11 +13,11 @@ struct SimpleChecklistView: View {
     @State private var showingAdd = false
     @State private var editing: SimpleChecklist?
     @State private var showPermissionAlert = false
-    @State private var sortOption: SortOption = .creation
+    @State private var sortOption: SortOption = .manual
     @State private var filterTag: Tag? = nil // nil = all
 
     enum SortOption {
-        case creation
+        case manual
         case earliestDue
         case latestDue
     }
@@ -81,7 +83,7 @@ struct SimpleChecklistView: View {
                             // Sort Section
                             Section("Sort") {
                                 Picker("Sort By", selection: $sortOption) {
-                                    Label("Creation Date", systemImage: "clock").tag(SortOption.creation)
+                                    Label("Manual Order", systemImage: "arrow.up.arrow.down").tag(SortOption.manual)
                                     Label("Earliest Due", systemImage: "arrow.down").tag(SortOption.earliestDue)
                                     Label("Latest Due", systemImage: "arrow.up").tag(SortOption.latestDue)
                                 }
@@ -110,21 +112,28 @@ struct SimpleChecklistView: View {
                             .ignoresSafeArea()
                     )
 
-                    let active = checklists.filter { !$0.isDone }
-                    let filteredActive = active.filter {
-                        guard let filterTag else { return true }
-                        return $0.tags.contains(filterTag)
+                    // Main List with Live Timer
+                    VStack(spacing: 0) {
+                        TimelineView(.periodic(from: .now, by: 60)) { context in
+                            let active = checklists.filter { !$0.isDone }
+                            let filteredActive = active.filter {
+                                guard let filterTag else { return true }
+                                return $0.tags.contains(where: { $0.id == filterTag.id })
+                            }
+                            let sortedActive = sort(filteredActive)
+                            
+                            if sortedActive.isEmpty {
+                                emptyState
+                                    .padding(.top, 40)
+                            } else {
+                                list(active: sortedActive)
+                                    .padding(.top)
+                            }
+                        }
                     }
-                    let sortedActive = sort(filteredActive)
-
-                    if sortedActive.isEmpty {
-                        emptyState
-                            .padding(.top, 40)
-                    } else {
-                        list(active: sortedActive)
-                            .padding(.top)
-                    }
-
+                    .padding(.horizontal)
+                    .padding(.bottom, 80)
+                    
                     Spacer()
                 }
                 
@@ -264,11 +273,23 @@ struct SimpleChecklistView: View {
             .onDelete { offsets in
                 delete(offsets: offsets, in: active)
             }
+            .onMove { from, to in
+                moveChecklists(from: from, to: to, active: active)
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
+    }
+
+    private func moveChecklists(from source: IndexSet, to destination: Int, active: [SimpleChecklist]) {
+        var sortedItems = active
+        sortedItems.move(fromOffsets: source, toOffset: destination)
+        
+        for (index, item) in sortedItems.enumerated() {
+            item.userOrder = index
+        }
     }
 
     private var header: some View {
@@ -282,9 +303,9 @@ struct SimpleChecklistView: View {
 
     private func sort(_ checklists: [SimpleChecklist]) -> [SimpleChecklist] {
         switch sortOption {
-        case .creation:
-            return checklists
-        case .earliestDue:
+        case .manual:
+            return checklists.sorted { $0.userOrder < $1.userOrder }
+        case .earliestDue: // creation is gone
             return checklists.sorted { lhs, rhs in
                 guard let lDate = lhs.dueDate else { return false }
                 guard let rDate = rhs.dueDate else { return true }
@@ -657,22 +678,22 @@ struct SimpleChecklistRow: View {
                         .strikethrough(checklist.isDone, color: .secondary)
                     
                     // Multi-Tag Display
-                HStack(spacing: 4) {
-                    ForEach(checklist.tags.prefix(3)) { tag in
-                        Text(tag.name)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(tag.color)
-                            .clipShape(Capsule())
+                    HStack(spacing: 4) {
+                        ForEach(checklist.tags.prefix(3)) { tag in
+                            Text(tag.name)
+                                .font(.system(size: 10, weight: .bold))
+                                .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
+                                .padding(.horizontal, 6)
+                                .padding(.vertical, 2)
+                                .background(tag.color)
+                                .clipShape(Capsule())
+                        }
+                        if checklist.tags.count > 3 {
+                            Text("+\(checklist.tags.count - 3)")
+                                .font(.caption2)
+                                .foregroundStyle(.secondary)
+                        }
                     }
-                    if checklist.tags.count > 3 {
-                        Text("+\(checklist.tags.count - 3)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
-                    }
-                }
                 }
                 if let notes = checklist.notes, !notes.isEmpty {
                     Text(notes)
@@ -692,6 +713,7 @@ struct SimpleChecklistRow: View {
                 }
             }
             Spacer()
+            
             Button {
                 onEdit()
             } label: {
@@ -704,6 +726,22 @@ struct SimpleChecklistRow: View {
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .transition(.opacity.combined(with: .move(edge: .trailing)))
         .animation(.easeInOut, value: checklist.isDone)
+        .contextMenu {
+            Button {
+            } label: {
+                Label("Share", systemImage: "square.and.arrow.up")
+            }
+            Button {
+                onEdit()
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+            Button {
+                onToggleDone()
+            } label: {
+                Label(checklist.isDone ? "Mark Undone" : "Mark Done", systemImage: checklist.isDone ? "circle" : "checkmark.circle")
+            }
+        }
     }
 
     private func timeRemaining(until date: Date) -> String {

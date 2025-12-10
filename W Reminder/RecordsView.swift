@@ -351,7 +351,9 @@ struct RecordsView: View {
     }
 
     private func clearSimples() {
-        deleteSimples(offsets: IndexSet(completedSimples.indices))
+        for simple in completedSimples {
+            modelContext.delete(simple)
+        }
     }
 }
 
@@ -359,4 +361,3 @@ struct RecordsView: View {
     RecordsView(theme: .default)
         .modelContainer(for: [Checklist.self, ChecklistItem.self, SimpleChecklist.self, Tag.self], inMemory: true)
 }
-

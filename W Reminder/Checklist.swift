@@ -38,6 +38,7 @@ final class Checklist {
     // Computed properties are not persisted but useful in views.
     
     @Relationship var tags: [Tag] = []
+    var userOrder: Int = 0
 
     init(
         title: String,
@@ -45,7 +46,8 @@ final class Checklist {
         dueDate: Date? = nil,
         remind: Bool = false,
         items: [ChecklistItem] = [],
-        tags: [Tag] = []
+        tags: [Tag] = [],
+        userOrder: Int = 0
     ) {
         self.title = title
         self.notes = notes
@@ -54,6 +56,7 @@ final class Checklist {
         self.remind = remind
         self.items = items
         self.tags = tags
+        self.userOrder = userOrder
     }
 }
 
@@ -66,6 +69,7 @@ final class SimpleChecklist {
     var dueDate: Date?
     var remind: Bool
     var isDone: Bool = false
+    var userOrder: Int = 0
     
     @Relationship var tags: [Tag] = []
 
@@ -75,7 +79,8 @@ final class SimpleChecklist {
         dueDate: Date? = nil,
         remind: Bool = false,
         isDone: Bool = false,
-        tags: [Tag] = []
+        tags: [Tag] = [],
+        userOrder: Int = 0
     ) {
         self.title = title
         self.notes = notes
@@ -84,5 +89,6 @@ final class SimpleChecklist {
         self.remind = remind
         self.isDone = isDone
         self.tags = tags
+        self.userOrder = userOrder
     }
 }

@@ -9,6 +9,9 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 import UIKit
+import SwiftData
+import UserNotifications
+import UIKit
 
 struct MilestoneView: View {
     @Environment(\.modelContext) private var modelContext
@@ -18,11 +21,11 @@ struct MilestoneView: View {
     @State private var showingAddChecklist = false
     @State private var editingChecklist: Checklist?
     @State private var showPermissionAlert = false
-    @State private var sortOption: SortOption = .creation
+    @State private var sortOption: SortOption = .manual
     @State private var filterTag: Tag? = nil // nil = all
 
     enum SortOption: Identifiable, CaseIterable {
-        case creation
+        case manual
         case earliestDue
         case latestDue
 
@@ -91,7 +94,7 @@ struct MilestoneView: View {
                             // Sort Section
                             Section("Sort") {
                                 Picker("Sort By", selection: $sortOption) {
-                                    Label("Creation Date", systemImage: "clock").tag(SortOption.creation)
+                                    Label("Manual Order", systemImage: "arrow.up.arrow.down").tag(SortOption.manual)
                                     Label("Earliest Due", systemImage: "arrow.down").tag(SortOption.earliestDue)
                                     Label("Latest Due", systemImage: "arrow.up").tag(SortOption.latestDue)
                                 }
@@ -120,24 +123,31 @@ struct MilestoneView: View {
                             .ignoresSafeArea()
                     )
 
-                    // List Content
-                    let active = checklists.filter { !$0.isDone }
-                    let filteredActive = active.filter {
-                        guard let filterTag else { return true }
-                        return $0.tags.contains(filterTag)
-                    }
-                    let sortedActive = sort(filteredActive)
-
-                    if sortedActive.isEmpty {
-                        emptyState
-                            .padding(.top, 40)
-                    } else {
-                        checklistList(active: sortedActive)
-                            .padding(.top)
-                    }
-
-                    Spacer()
+                    // Main List with Live Timer
+                VStack(spacing: 0) {
+                     TimelineView(.periodic(from: .now, by: 60)) { context in
+                         let active = checklists.filter { !$0.isDone }
+                         let filteredActive = active.filter {
+                             guard let filterTag else { return true }
+                             return $0.tags.contains(where: { $0.id == filterTag.id })
+                         }
+                         let sortedActive = sort(filteredActive)
+                         
+                         if sortedActive.isEmpty {
+                             emptyState
+                                 .padding(.top, 40)
+                         } else {
+                             checklistList(active: sortedActive)
+                                 .padding(.top)
+                         }
+                     }
                 }
+                .padding(.horizontal)
+                .padding(.bottom, 80)
+                
+                
+                Spacer()
+            }
                 
                 // Floating Action Button
                 VStack {
@@ -149,14 +159,14 @@ struct MilestoneView: View {
                             showingAddChecklist = true
                         } label: {
                             Image(systemName: "plus")
-                                .font(.title.bold())
-                                .foregroundStyle(.white)
-                                .frame(width: 60, height: 60)
-                                .background(
-                                    Circle()
-                                        .fill(theme.accent)
-                                        .shadow(color: theme.accent.opacity(0.4), radius: 10, x: 0, y: 5)
-                                )
+                            .font(.title.bold())
+                            .foregroundStyle(.white)
+                            .frame(width: 60, height: 60)
+                            .background(
+                                Circle()
+                                    .fill(theme.accent)
+                                    .shadow(color: theme.accent.opacity(0.4), radius: 10, x: 0, y: 5)
+                            )
                         }
                         .padding()
                     }
@@ -315,6 +325,9 @@ struct MilestoneView: View {
             .onDelete { offsets in
                 deleteChecklists(offsets: offsets, in: active)
             }
+            .onMove { from, to in
+                moveChecklists(from: from, to: to, active: active)
+            }
         }
         .listStyle(.plain)
         .scrollContentBackground(.hidden)
@@ -322,10 +335,20 @@ struct MilestoneView: View {
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
     }
 
+    private func moveChecklists(from source: IndexSet, to destination: Int, active: [Checklist]) {
+        var sortedItems = active
+        sortedItems.move(fromOffsets: source, toOffset: destination)
+        
+        // Update userOrder for all items to reflect new position
+        for (index, item) in sortedItems.enumerated() {
+            item.userOrder = index
+        }
+    }
+
     private func sort(_ checklists: [Checklist]) -> [Checklist] {
         switch sortOption {
-        case .creation:
-            return checklists
+        case .manual:
+            return checklists.sorted { $0.userOrder < $1.userOrder }
         case .earliestDue:
             return checklists.sorted { lhs, rhs in
                 guard let lDate = lhs.dueDate else { return false }
@@ -823,6 +846,7 @@ struct ChecklistRow: View {
                     .font(.caption)
                     .foregroundStyle(.secondary)
                 Spacer()
+                
                 Button("Edit") { onEdit() }
                     .font(.caption)
             }
@@ -831,6 +855,13 @@ struct ChecklistRow: View {
         .background(theme.background.opacity(0.9))
         .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
         .animation(.easeInOut, value: checklist.isDone)
+        .contextMenu {
+            Button {
+                onEdit()
+            } label: {
+                Label("Edit", systemImage: "pencil")
+            }
+        }
     }
 
     private var completedCount: Int {
