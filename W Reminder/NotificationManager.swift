@@ -15,13 +15,16 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
         UNUserNotificationCenter.current().delegate = self
     }
 
-    func requestAuthorization() {
+    func requestAuthorization(completion: ((Bool) -> Void)? = nil) {
         UNUserNotificationCenter.current()
             .requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
                 if let error = error {
                     print("Notification permission error: \(error)")
                 } else {
                     print("Notification permission granted: \(granted)")
+                }
+                DispatchQueue.main.async {
+                    completion?(granted)
                 }
             }
     }

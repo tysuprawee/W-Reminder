@@ -10,71 +10,95 @@ import AVFoundation
 
 struct RootView: View {
     @AppStorage("selectedThemeId") private var selectedThemeId: String = Theme.default.id
+    @AppStorage("notificationSound") private var notificationSound: NotificationSound = .default
 
-    private var selectedTheme: Theme {
-        Theme.all.first(where: { $0.id == selectedThemeId }) ?? .default
+    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
+    @Environment(\.scenePhase) private var scenePhase
+
+    var theme: Theme {
+        Theme.all.first { $0.id == selectedThemeId } ?? .default
     }
 
     var body: some View {
         TabView {
-            MilestoneView(theme: selectedTheme)
+            MilestoneView(theme: theme)
                 .tabItem {
                     Label("Milestones", systemImage: "flag.checkered")
                 }
 
-            SimpleChecklistView(theme: selectedTheme)
+            SimpleChecklistView(theme: theme)
                 .tabItem {
                     Label("Checklists", systemImage: "checklist")
                 }
 
-            CalendarView(theme: selectedTheme)
+            CalendarView(theme: theme)
                 .tabItem {
                     Label("Calendar", systemImage: "calendar")
                 }
 
-            RecordsView(theme: selectedTheme)
+            RecordsView(theme: theme)
                 .tabItem {
                     Label("Records", systemImage: "tray.full")
                 }
 
-            SettingsView(selectedThemeId: $selectedThemeId, theme: selectedTheme)
+            SettingsView(selectedThemeId: $selectedThemeId, notificationStatus: $notificationStatus, notificationSound: $notificationSound, theme: theme)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
         }
-        .tint(selectedTheme.accent)
+        .tint(theme.accent)
+        .onAppear {
+            refreshNotificationStatus()
+        }
+        .onChange(of: scenePhase) { oldPhase, newPhase in
+            if newPhase == .active {
+                refreshNotificationStatus()
+            }
+        }
+    }
+    
+    private func refreshNotificationStatus() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                notificationStatus = settings.authorizationStatus
+            }
+        }
     }
 }
 
 struct SettingsView: View {
     @Binding var selectedThemeId: String
-    @State private var notificationStatus: UNAuthorizationStatus = .notDetermined
-    @AppStorage("notificationSound") private var notificationSound = NotificationSound.default
+    @Binding var notificationStatus: UNAuthorizationStatus
+    @Binding var notificationSound: NotificationSound
 
     let theme: Theme
+    
+    @Query private var tags: [Tag]
+    
+    private var tagCount: Int {
+        tags.count
+    }
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Notifications") {
                     HStack {
-                        Label("Status", systemImage: "bell.badge")
+                        Label("Status", systemImage: "bell.badge.fill")
                         Spacer()
+                        Circle()
+                            .fill(statusColor)
+                            .frame(width: 8, height: 8)
                         Text(statusLabel)
-                            .foregroundStyle(statusColor)
-                            .font(.subheadline.bold())
+                            .foregroundStyle(.secondary)
                     }
-
-                    Button("Allow Notifications") {
-                        NotificationManager.shared.requestAuthorization()
-                        refreshNotificationStatus()
-                    }
-                    .buttonStyle(.borderedProminent)
-                    .tint(theme.accent)
-
-                    if notificationStatus == .denied {
-                        Button("Open Settings") {
-                            openAppSettings()
+                    
+                    if notificationStatus != .authorized {
+                        Button {
+                            requestNotificationPermission()
+                        } label: {
+                            Text(notificationStatus == .denied ? "Open Settings" : "Allow Notifications")
+                                .frame(maxWidth: .infinity)
                         }
                         .buttonStyle(.bordered)
                     }
@@ -99,6 +123,20 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.bordered)
                         .tint(theme.accent)
+                    }
+                }
+
+                Section("Manage Tags") {
+                    NavigationLink {
+                        TagManagementView(theme: theme)
+                    } label: {
+                        HStack {
+                            Label("Tags", systemImage: "tag.fill")
+                            Spacer()
+                            Text("\(tagCount) tags")
+                                .foregroundStyle(.secondary)
+                                .font(.subheadline)
+                        }
                     }
                 }
 
@@ -138,9 +176,6 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
-            .onAppear {
-                refreshNotificationStatus()
-            }
         }
     }
 
@@ -188,17 +223,40 @@ struct SettingsView: View {
         AudioServicesPlaySystemSound(soundID)
     }
     
-    private func refreshNotificationStatus() {
-        UNUserNotificationCenter.current().getNotificationSettings { settings in
-            DispatchQueue.main.async {
-                notificationStatus = settings.authorizationStatus
-            }
-        }
-    }
-
     private func openAppSettings() {
         guard let url = URL(string: UIApplication.openSettingsURLString) else { return }
         UIApplication.shared.open(url)
+    }
+    
+    private func requestNotificationPermission() {
+        UNUserNotificationCenter.current().getNotificationSettings { settings in
+            DispatchQueue.main.async {
+                switch settings.authorizationStatus {
+                case .notDetermined:
+                    // First time - request permission
+                    NotificationManager.shared.requestAuthorization { granted in
+                        // Refresh status regardless of result
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            UNUserNotificationCenter.current().getNotificationSettings { newSettings in
+                                DispatchQueue.main.async {
+                                    self.notificationStatus = newSettings.authorizationStatus
+                                }
+                            }
+                        }
+                    }
+                case .denied:
+                    // Permission denied - open Settings
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
+                case .authorized, .provisional, .ephemeral:
+                    // Already authorized - no action needed
+                    break
+                @unknown default:
+                    break
+                }
+            }
+        }
     }
 
     private func themeSwatch(for theme: Theme) -> some View {

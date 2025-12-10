@@ -235,13 +235,20 @@ struct MilestoneView: View {
             }
             .alert("Notifications are off", isPresented: $showPermissionAlert) {
                 Button("Allow Now") {
-                    NotificationManager.shared.requestAuthorization()
-                    verifyNotificationPermission()
+                    NotificationManager.shared.requestAuthorization { granted in
+                        if granted {
+                            showPermissionAlert = false
+                        }
+                    }
                 }
                 Button("Open Settings") {
-                    openAppSettings()
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
                 }
-                Button("Maybe Later", role: .cancel) {}
+                Button("Maybe Later", role: .cancel) {
+                    showPermissionAlert = false
+                }
             } message: {
                 Text("Enable notifications in Settings to get reminder alerts.")
             }
@@ -883,6 +890,16 @@ struct ChecklistRow: View {
                     .foregroundStyle(.secondary)
                 Spacer()
                 
+                if let dueDate = checklist.dueDate {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
+                            .font(.caption)
+                        Text(timeRemaining(until: dueDate))
+                            .font(.caption)
+                    }
+                    .foregroundStyle(deadlineColor(for: dueDate))
+                }
+                
                 Button("Edit") { onEdit() }
                     .font(.caption)
             }
@@ -897,6 +914,21 @@ struct ChecklistRow: View {
             } label: {
                 Label("Edit", systemImage: "pencil")
             }
+        }
+    }
+    
+    private func deadlineColor(for dueDate: Date) -> Color {
+        let now = Date()
+        let timeRemaining = dueDate.timeIntervalSince(now)
+        
+        if timeRemaining < 0 {
+            // Past due
+            return .red
+        } else if timeRemaining < 86400 { // Less than 24 hours
+            return .yellow
+        } else {
+            // More than 1 day
+            return theme.secondary
         }
     }
 

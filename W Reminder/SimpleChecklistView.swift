@@ -219,15 +219,22 @@ struct SimpleChecklistView: View {
             }
             .alert("Notifications are off", isPresented: $showPermissionAlert) {
                 Button("Allow Now") {
-                    NotificationManager.shared.requestAuthorization()
-                    verifyNotificationPermission()
+                    NotificationManager.shared.requestAuthorization { granted in
+                        if granted {
+                            showPermissionAlert = false
+                        }
+                    }
                 }
                 Button("Open Settings") {
-                    openAppSettings()
+                    if let url = URL(string: UIApplication.openSettingsURLString) {
+                        UIApplication.shared.open(url)
+                    }
                 }
-                Button("Maybe Later", role: .cancel) {}
+                Button("Maybe Later", role: .cancel) {
+                    showPermissionAlert = false
+                }
             } message: {
-                Text("Enable notifications in Settings to get checklist alerts.")
+                Text("Enable notifications in Settings to get reminder alerts.")
             }
         }
         .tint(theme.accent)
@@ -738,20 +745,19 @@ struct SimpleChecklistRow: View {
                         .font(.footnote)
                         .foregroundStyle(.secondary)
                 }
-                if let due = checklist.dueDate {
-                    HStack(spacing: 6) {
-                        Text(due, format: .dateTime.day().month().hour().minute())
+                if let dueDate = checklist.dueDate {
+                    HStack(spacing: 4) {
+                        Image(systemName: "clock")
                             .font(.caption)
-                            .foregroundStyle(.secondary)
-                        Spacer()
-                        Text(timeRemaining(until: due))
+                        Text(timeRemaining(until: dueDate))
                             .font(.caption)
-                            .foregroundStyle(.secondary)
                     }
+                    .foregroundStyle(deadlineColor(for: dueDate))
                 }
             }
             Spacer()
             
+            // Edit button
             Button {
                 onEdit()
             } label: {
@@ -791,6 +797,21 @@ struct SimpleChecklistRow: View {
             } label: {
                 Label(checklist.isDone ? "Mark Undone" : "Mark Done", systemImage: checklist.isDone ? "circle" : "checkmark.circle")
             }
+        }
+    }
+    
+    private func deadlineColor(for dueDate: Date) -> Color {
+        let now = Date()
+        let timeRemaining = dueDate.timeIntervalSince(now)
+        
+        if timeRemaining < 0 {
+            // Past due
+            return .red
+        } else if timeRemaining < 86400 { // Less than 24 hours
+            return .yellow
+        } else {
+            // More than 1 day
+            return theme.secondary
         }
     }
 
