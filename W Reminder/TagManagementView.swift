@@ -63,7 +63,7 @@ struct TagManagementView: View {
         .sheet(isPresented: $showingAddTag) {
             NavigationStack {
                 TagEditView(theme: theme) { name, color in
-                    let hexString = color.toHex() ?? "#0000FF"
+                    let hexString = color.toHex()
                     let newTag = Tag(name: name, colorHex: hexString)
                     modelContext.insert(newTag)
                     try? modelContext.save()
@@ -75,7 +75,7 @@ struct TagManagementView: View {
             NavigationStack {
                 TagEditView(tag: tag, theme: theme) { name, color in
                     tag.name = name
-                    tag.colorHex = color.toHex() ?? "#0000FF"
+                    tag.colorHex = color.toHex()
                     try? modelContext.save()
                     editingTag = nil
                 }
@@ -161,18 +161,3 @@ struct TagEditView: View {
     }
 }
 
-// MARK: - Color Extension for Hex Conversion
-extension Color {
-    func toHex() -> String? {
-        guard let components = UIColor(self).cgColor.components else { return nil }
-        
-        let r = Float(components[0])
-        let g = Float(components[1])
-        let b = Float(components[2])
-        
-        return String(format: "#%02lX%02lX%02lX",
-                     lroundf(r * 255),
-                     lroundf(g * 255),
-                     lroundf(b * 255))
-    }
-}

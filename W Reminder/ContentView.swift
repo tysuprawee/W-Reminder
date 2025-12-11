@@ -148,7 +148,8 @@ struct MilestoneView: View {
 
                     // Main List with Live Timer
                 VStack(spacing: 0) {
-                     TimelineView(.periodic(from: .now, by: 60)) { context in
+                     TimelineView(.everyMinute) { context in
+                         let _ = context.date // Force view update on timeline changes
                          let active = checklists.filter { !$0.isDone }
                          let filteredActive = active.filter {
                              guard let filterTag else { return true }
@@ -494,7 +495,7 @@ struct AddChecklistView: View {
         .sheet(isPresented: $showingNewTagSheet) {
             NavigationStack {
                 TagEditView(theme: theme) { name, color in
-                    let hexString = color.toHex() ?? "#0000FF"
+                    let hexString = color.toHex()
                     let newTag = Tag(name: name, colorHex: hexString)
                     modelContext.insert(newTag)
                     try? modelContext.save()
@@ -656,6 +657,7 @@ struct AddChecklistView: View {
                 }
                 Spacer()
                 CustomToggle(isOn: $isSettingDueDate.animation())
+                    .accessibilityIdentifier("deadlineToggle")
                     .onChange(of: isSettingDueDate) { oldValue, newValue in
                         if newValue { remind = true }
                     }
@@ -906,6 +908,7 @@ struct ChecklistRow: View {
                             .font(.caption)
                         Text(timeRemaining(until: dueDate))
                             .font(.caption)
+                            .accessibilityIdentifier("timeRemainingLabel")
                     }
                     .foregroundStyle(deadlineColor(for: dueDate))
                 }

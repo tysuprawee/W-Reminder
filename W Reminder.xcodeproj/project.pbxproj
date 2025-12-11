@@ -14,10 +14,18 @@
 			remoteGlobalIDString = 8EEC8A232ECF9892009E9C8A;
 			remoteInfo = "W Reminder";
 		};
+		8E64B62E2EEA82F900916B45 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8EEC8A1C2ECF9892009E9C8A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8EEC8A232ECF9892009E9C8A;
+			remoteInfo = "W Reminder";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXFileReference section */
 		8E64B6112EE94E6A00916B45 /* W ReminderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "W ReminderTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E64B6282EEA82F900916B45 /* W ReminderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "W ReminderUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8EEC8A242ECF9892009E9C8A /* W Reminder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "W Reminder.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -25,6 +33,11 @@
 		8E64B6122EE94E6A00916B45 /* W ReminderTests */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			path = "W ReminderTests";
+			sourceTree = "<group>";
+		};
+		8E64B6292EEA82F900916B45 /* W ReminderUITests */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			path = "W ReminderUITests";
 			sourceTree = "<group>";
 		};
 		8EEC8A262ECF9892009E9C8A /* W Reminder */ = {
@@ -36,6 +49,13 @@
 
 /* Begin PBXFrameworksBuildPhase section */
 		8E64B60E2EE94E6A00916B45 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8E64B6252EEA82F900916B45 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -57,6 +77,7 @@
 			children = (
 				8EEC8A262ECF9892009E9C8A /* W Reminder */,
 				8E64B6122EE94E6A00916B45 /* W ReminderTests */,
+				8E64B6292EEA82F900916B45 /* W ReminderUITests */,
 				8EEC8A252ECF9892009E9C8A /* Products */,
 			);
 			sourceTree = "<group>";
@@ -66,6 +87,7 @@
 			children = (
 				8EEC8A242ECF9892009E9C8A /* W Reminder.app */,
 				8E64B6112EE94E6A00916B45 /* W ReminderTests.xctest */,
+				8E64B6282EEA82F900916B45 /* W ReminderUITests.xctest */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -95,6 +117,29 @@
 			productName = "W ReminderTests";
 			productReference = 8E64B6112EE94E6A00916B45 /* W ReminderTests.xctest */;
 			productType = "com.apple.product-type.bundle.unit-test";
+		};
+		8E64B6272EEA82F900916B45 /* W ReminderUITests */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8E64B6302EEA82F900916B45 /* Build configuration list for PBXNativeTarget "W ReminderUITests" */;
+			buildPhases = (
+				8E64B6242EEA82F900916B45 /* Sources */,
+				8E64B6252EEA82F900916B45 /* Frameworks */,
+				8E64B6262EEA82F900916B45 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+				8E64B62F2EEA82F900916B45 /* PBXTargetDependency */,
+			);
+			fileSystemSynchronizedGroups = (
+				8E64B6292EEA82F900916B45 /* W ReminderUITests */,
+			);
+			name = "W ReminderUITests";
+			packageProductDependencies = (
+			);
+			productName = "W ReminderUITests";
+			productReference = 8E64B6282EEA82F900916B45 /* W ReminderUITests.xctest */;
+			productType = "com.apple.product-type.bundle.ui-testing";
 		};
 		8EEC8A232ECF9892009E9C8A /* W Reminder */ = {
 			isa = PBXNativeTarget;
@@ -132,6 +177,10 @@
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = 8EEC8A232ECF9892009E9C8A;
 					};
+					8E64B6272EEA82F900916B45 = {
+						CreatedOnToolsVersion = 16.2;
+						TestTargetID = 8EEC8A232ECF9892009E9C8A;
+					};
 					8EEC8A232ECF9892009E9C8A = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -153,12 +202,20 @@
 			targets = (
 				8EEC8A232ECF9892009E9C8A /* W Reminder */,
 				8E64B6102EE94E6A00916B45 /* W ReminderTests */,
+				8E64B6272EEA82F900916B45 /* W ReminderUITests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
 		8E64B60F2EE94E6A00916B45 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8E64B6262EEA82F900916B45 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -182,6 +239,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8E64B6242EEA82F900916B45 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8EEC8A202ECF9892009E9C8A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -196,6 +260,11 @@
 			isa = PBXTargetDependency;
 			target = 8EEC8A232ECF9892009E9C8A /* W Reminder */;
 			targetProxy = 8E64B6152EE94E6A00916B45 /* PBXContainerItemProxy */;
+		};
+		8E64B62F2EEA82F900916B45 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8EEC8A232ECF9892009E9C8A /* W Reminder */;
+			targetProxy = 8E64B62E2EEA82F900916B45 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -233,6 +302,40 @@
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 				TEST_HOST = "$(BUILT_PRODUCTS_DIR)/W Reminder.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/W Reminder";
+			};
+			name = Release;
+		};
+		8E64B6312EEA82F900916B45 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4H48F9L3R2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-ReminderUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "W Reminder";
+			};
+			name = Debug;
+		};
+		8E64B6322EEA82F900916B45 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4H48F9L3R2;
+				GENERATE_INFOPLIST_FILE = YES;
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-ReminderUITests";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SWIFT_EMIT_LOC_STRINGS = NO;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+				TEST_TARGET_NAME = "W Reminder";
 			};
 			name = Release;
 		};
@@ -421,6 +524,15 @@
 			buildConfigurations = (
 				8E64B6182EE94E6A00916B45 /* Debug */,
 				8E64B6192EE94E6A00916B45 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8E64B6302EEA82F900916B45 /* Build configuration list for PBXNativeTarget "W ReminderUITests" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8E64B6312EEA82F900916B45 /* Debug */,
+				8E64B6322EEA82F900916B45 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

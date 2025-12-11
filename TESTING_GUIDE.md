@@ -12,9 +12,11 @@ Unit tests are automated tests that verify individual components (units) of your
 
 ## Test Structure
 
-The W Reminder app has two test files:
+The W Reminder app has three unit test files and one UI test file:
 
-### 1. `ModelTests.swift`
+### Unit Tests
+
+#### 1. `ModelTests.swift`
 Tests the core SwiftData models:
 - **Tag**: Creation, color conversion
 - **ChecklistItem**: Creation, toggling completion
@@ -23,11 +25,29 @@ Tests the core SwiftData models:
 - **Relationships**: Parent-child relationships between models
 - **SwiftData operations**: Fetching and filtering data
 
-### 2. `UtilityTests.swift`
+#### 2. `UtilityTests.swift`
 Tests utility functions and extensions:
 - **Color conversions**: Hex to Color and Color to Hex
 - **Dark color detection**: Determining if colors are dark
 - **Theme**: Default theme configuration
+
+#### 3. `TimelineTests.swift`
+Tests time-related functionality and TimelineView synchronization:
+- **Time remaining calculations**: Accurate time interval calculations
+- **Time display formatting**: Proper display strings for different time ranges
+- **Minute boundary alignment**: Ensures updates sync with clock
+- **Refresh state management**: UUID-based view refresh mechanism
+- **Overdue task handling**: Correct formatting for past-due times
+
+### UI Tests
+
+#### 4. `TimelineUITests.swift`
+Tests user interface and TimelineView automatic updates:
+- **Time display visibility**: Verifies time remaining text appears
+- **Pull-to-refresh**: Tests manual refresh gesture
+- **Tab navigation**: Ensures smooth navigation between views
+- **Settings integration**: Checks silent mode info display
+- **Performance**: Measures scroll and interaction performance
 
 ## How to Set Up Tests
 
@@ -89,6 +109,19 @@ In the Test Navigator:
 **Or** in the code editor:
 - Look for the diamond icon in the gutter next to each test method
 - Click it to run that specific test
+
+### Running UI Tests
+
+**Method 1: Using Test Navigator**
+- Press `⌘ + 6` to open Test Navigator
+- Expand `W ReminderUITests`
+- Click the play button next to `TimelineUITests`
+
+**Method 2: Run All UI Tests**
+- Select the `W ReminderUITests` scheme in Xcode
+- Press `⌘ + U`
+
+**Note**: UI tests will launch the app in the simulator and interact with it automatically. They take longer than unit tests.
 
 ## Understanding Test Results
 
