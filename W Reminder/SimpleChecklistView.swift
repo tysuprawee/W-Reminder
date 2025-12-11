@@ -16,6 +16,7 @@ struct SimpleChecklistView: View {
     @State private var sortOption: SortOption = .manual
     @State private var filterTag: Tag? = nil // nil = all
     @State private var showOnlyStarred = false
+    @State private var refreshID = UUID() // Force refresh TimelineView
 
     enum SortOption {
         case manual
@@ -325,6 +326,18 @@ struct SimpleChecklistView: View {
         .scrollContentBackground(.hidden)
         .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
+        .refreshable {
+            // Trigger haptic feedback
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+            
+            // Force refresh by updating refreshID
+            refreshID = UUID()
+            
+            // Small delay for visual feedback
+            try? await Task.sleep(nanoseconds: 300_000_000)
+        }
+        .id(refreshID) // Force view refresh when refreshID changes
     }
 
     private func moveChecklists(from source: IndexSet, to destination: Int, active: [SimpleChecklist]) {
@@ -418,9 +431,7 @@ struct AddSimpleChecklistView: View {
     @State private var selectedTags: [Tag] = []
     
     // Custom Tag Creation State
-    @State private var showingCreateTag = false
-    @State private var newTagName = ""
-    @State private var newTagColor = Color.blue
+    @State private var showingNewTagSheet = false
 
     var checklist: SimpleChecklist?
     let theme: Theme
@@ -482,18 +493,30 @@ struct AddSimpleChecklistView: View {
                                                     }
                                                 }
                                             } label: {
-                                                Text(tag.name)
-                                                    .font(.caption.bold())
-                                                    .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
-                                                    .padding(.horizontal, 12)
-                                                    .padding(.vertical, 6)
-                                                    .background(tag.color)
-                                                    .clipShape(Capsule())
-                                                    .overlay(
-                                                        Capsule()
-                                                            .stroke(theme.accent, lineWidth: selectedTags.contains(where: { $0.id == tag.id }) ? 3 : 0)
-                                                    )
-                                                    .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
+                                                 Text(tag.name)
+                                                     .font(.caption.bold())
+                                                     .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
+                                                     .padding(.horizontal, 12)
+                                                     .padding(.vertical, 6)
+                                                     .background(
+                                                         Capsule()
+                                                             .fill(tag.color.opacity(0.85))
+                                                             .overlay(
+                                                                 Capsule()
+                                                                     .fill(
+                                                                         LinearGradient(
+                                                                             colors: [.white.opacity(0.3), .clear],
+                                                                             startPoint: .top,
+                                                                             endPoint: .bottom
+                                                                         )
+                                                                     )
+                                                             )
+                                                     )
+                                                     .overlay(
+                                                         Capsule()
+                                                             .stroke(selectedTags.contains(where: { $0.id == tag.id }) ? theme.accent : tag.color.opacity(0.4), lineWidth: selectedTags.contains(where: { $0.id == tag.id }) ? 3 : 1)
+                                                     )
+                                                     .shadow(color: tag.color.opacity(0.4), radius: 4, y: 2)
                                             }
                                             .contextMenu {
                                                 Button(role: .destructive) {
@@ -508,11 +531,10 @@ struct AddSimpleChecklistView: View {
                                                 }
                                             }
                                         }
-                                        
-                                        // "Add Tag" Button
-                                        Button {
-                                            showingCreateTag = true
-                                        } label: {
+                                                                                // "Add Tag" Button
+                                         Button {
+                                             showingNewTagSheet = true
+                                         } label: {
                                             Image(systemName: "plus")
                                                 .font(.caption.bold())
                                                 .foregroundStyle(theme.accent)
@@ -630,48 +652,18 @@ struct AddSimpleChecklistView: View {
             }
             .navigationTitle(checklist == nil ? "New Checklist" : "Edit Checklist")
             .navigationBarTitleDisplayMode(.inline)
-            .sheet(isPresented: $showingCreateTag) {
-                NavigationStack {
-                    VStack(spacing: 24) {
-                        Circle()
-                            .fill(newTagColor)
-                            .frame(width: 80, height: 80)
-                            .shadow(radius: 5)
-                        
-                        TextField("Tag Name", text: $newTagName)
-                            .font(.title2)
-                            .multilineTextAlignment(.center)
-                            .padding()
-                            .background(Color.gray.opacity(0.1))
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .padding(.horizontal)
-                        
-                        CustomColorPicker(selection: $newTagColor)
-                        
-                        Spacer()
-                    }
-                    .padding(.top)
-                    .navigationTitle("New Highlighter")
-                    .navigationBarTitleDisplayMode(.inline)
-                    .toolbar {
-                        ToolbarItem(placement: .cancellationAction) {
-                            Button("Cancel") { showingCreateTag = false }
-                        }
-                        ToolbarItem(placement: .confirmationAction) {
-                            Button("Create") {
-                                let tag = Tag(name: newTagName, colorHex: newTagColor.toHex())
-                                modelContext.insert(tag)
-                                if selectedTags.count < 3 {
-                                    selectedTags.append(tag)
-                                }
-                                showingCreateTag = false
-                                newTagName = ""
-                            }
-                            .disabled(newTagName.isEmpty)
-                        }
-                    }
+
+        }
+        .sheet(isPresented: $showingNewTagSheet) {
+            NavigationStack {
+                TagEditView(theme: theme) { name, color in
+                    let hexString = color.toHex() ?? "#0000FF"
+                    let newTag = Tag(name: name, colorHex: hexString)
+                    modelContext.insert(newTag)
+                    try? modelContext.save()
+                    selectedTags.append(newTag)
+                    showingNewTagSheet = false
                 }
-                .presentationDetents([.fraction(0.6), .large])
             }
         }
         .onAppear {
@@ -730,8 +722,25 @@ struct SimpleChecklistRow: View {
                                 .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
                                 .padding(.horizontal, 6)
                                 .padding(.vertical, 2)
-                                .background(tag.color)
-                                .clipShape(Capsule())
+                                .background(
+                                    Capsule()
+                                        .fill(tag.color.opacity(0.85))
+                                        .overlay(
+                                            Capsule()
+                                                .fill(
+                                                    LinearGradient(
+                                                        colors: [.white.opacity(0.3), .clear],
+                                                        startPoint: .top,
+                                                        endPoint: .bottom
+                                                    )
+                                                )
+                                        )
+                                )
+                                .overlay(
+                                    Capsule()
+                                        .stroke(tag.color.opacity(0.4), lineWidth: 0.5)
+                                )
+                                .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
                         }
                         if checklist.tags.count > 3 {
                             Text("+\(checklist.tags.count - 3)")

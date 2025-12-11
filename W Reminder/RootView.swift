@@ -93,6 +93,22 @@ struct SettingsView: View {
                             .foregroundStyle(.secondary)
                     }
                     
+                    // Silent Mode Reminder
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .foregroundStyle(theme.accent)
+                            .font(.title3)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("Sound Mode")
+                                .font(.subheadline.bold())
+                            Text("Check your device's silent switch for sound or vibration only")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .padding(.vertical, 4)
+                    
                     if notificationStatus != .authorized {
                         Button {
                             requestNotificationPermission()
