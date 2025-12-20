@@ -302,6 +302,11 @@ struct MilestoneView: View {
         NotificationManager.shared.scheduleNotification(for: checklist)
         verifyNotificationPermission()
         editingChecklist = nil
+        
+        // Auto-sync
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
     }
 
     private func deleteChecklists(offsets: IndexSet, in source: [Checklist]) {
@@ -310,6 +315,10 @@ struct MilestoneView: View {
                 let checklist = source[index]
                 NotificationManager.shared.cancelNotification(for: checklist)
                 modelContext.delete(checklist)
+            }
+            // Auto-sync on Delete
+            Task {
+                await SyncManager.shared.sync(container: modelContext.container)
             }
         }
     }
@@ -898,11 +907,11 @@ struct ChecklistRow: View {
                 HStack(spacing: 6) {
                     Text(due, format: .dateTime.day().month().year())
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                     Spacer()
                     Text(timeRemaining(until: due))
                         .font(.footnote)
-                        .foregroundStyle(.secondary)
+                        .foregroundStyle(theme.secondary)
                 }
             }
 
@@ -979,7 +988,7 @@ struct ChecklistRow: View {
             .fill(
                 checklist.isStarred 
                     ? theme.accent.opacity(0.12)
-                    : theme.background
+                    : (theme.isDark ? Color.white.opacity(0.05) : theme.background)
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 12, style: .continuous)

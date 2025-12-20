@@ -73,6 +73,7 @@ struct RootView: View {
                  print("Session updated: User is authenticated")
              }
         }
+        .preferredColorScheme(theme.isDark ? .dark : .light)
     }
 
     // Rename for clarity, though "authenticatedView" contains the Tabs
@@ -157,7 +158,7 @@ struct SettingsView: View {
                             Button("Sign Out", role: .destructive) {
                                 Task {
                                     // 1. Sync one last time (Backup)
-                                    await SyncManager.shared.sync(context: modelContext)
+                                    await SyncManager.shared.sync(container: modelContext.container)
                                     // 2. Wipe local data (Clean Slate)
                                     try? SyncManager.shared.deleteLocalData(context: modelContext)
                                     // 3. Sign Out
@@ -235,6 +236,11 @@ struct SettingsView: View {
                         .tint(theme.accent)
                     }
                 }
+                .onChange(of: notificationSound) { oldValue, newValue in
+                    Task {
+                        await authManager.updateSettings(themeId: selectedThemeId, sound: newValue.rawValue)
+                    }
+                }
 
                 Section("Manage Tags") {
                     NavigationLink {
@@ -272,6 +278,11 @@ struct SettingsView: View {
                             }
                         }
                         .buttonStyle(.plain)
+                    }
+                }
+                .onChange(of: selectedThemeId) { oldValue, newValue in
+                    Task {
+                        await authManager.updateSettings(themeId: newValue, sound: notificationSound.rawValue)
                     }
                 }
 

@@ -101,6 +101,10 @@ final class AuthManager {
         } catch {
             print("Sign out error: \(error)")
         }
+        
+        // Reset preferences to default
+        UserDefaults.standard.removeObject(forKey: "selectedThemeId")
+        UserDefaults.standard.removeObject(forKey: "notificationSound")
     }
     
     // MARK: - Profile
@@ -118,11 +122,40 @@ final class AuthManager {
                 .value
             
             self.profile = profile
+            
+            // Apply preferences to Local (UI will update via AppStorage/Binding)
+            await MainActor.run {
+                if let themeId = profile.themeId {
+                    UserDefaults.standard.set(themeId, forKey: "selectedThemeId")
+                }
+                if let sound = profile.notificationSound {
+                    UserDefaults.standard.set(sound, forKey: "notificationSound")
+                }
+            }
         } catch {
             print("Error fetching profile: \(error)")
         }
     }
     
+    func updateSettings(themeId: String, sound: String) async {
+        guard let userId = user?.id else { return }
+        
+        let update = ProfileUpdate(
+            themeId: themeId,
+            notificationSound: sound
+        )
+        
+        do {
+            try await client
+                .from("profiles")
+                .update(update)
+                .eq("id", value: userId)
+                .execute()
+        } catch {
+            print("Error updating profile settings: \(error)")
+        }
+    }
+
     // Handle URL from deep link (for OAuth)
     func handleIncomingURL(_ url: URL) {
         Task {
@@ -143,11 +176,25 @@ struct Profile: Codable {
     let email: String?
     let fullName: String?
     let avatarUrl: String?
+    let themeId: String?
+    let notificationSound: String?
     
     enum CodingKeys: String, CodingKey {
         case id
         case email
         case fullName = "full_name"
         case avatarUrl = "avatar_url"
+        case themeId = "theme_id"
+        case notificationSound = "notification_sound"
+    }
+}
+
+struct ProfileUpdate: Encodable {
+    let themeId: String
+    let notificationSound: String
+    
+    enum CodingKeys: String, CodingKey {
+        case themeId = "theme_id"
+        case notificationSound = "notification_sound"
     }
 }

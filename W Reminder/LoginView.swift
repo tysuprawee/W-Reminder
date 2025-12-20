@@ -140,7 +140,7 @@ struct LoginView: View {
                         do {
                             // strictly enforce cloud state
                             try SyncManager.shared.deleteLocalData(context: modelContext)
-                            await SyncManager.shared.sync(context: modelContext)
+                            await SyncManager.shared.sync(container: modelContext.container)
                             dismiss()
                         } catch {
                             print("Error clearing local data: \(error)")
@@ -205,7 +205,7 @@ struct LoginView: View {
                 showingMergeAlert = true
             } else {
                 // No local data, just sync (pull) and close
-                await SyncManager.shared.sync(context: modelContext)
+                await SyncManager.shared.sync(container: modelContext.container)
                 dismiss()
             }
         } catch {

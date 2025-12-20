@@ -277,9 +277,7 @@ struct SimpleChecklistView: View {
         
         // Auto-sync on Save
         Task {
-        Task {
             await SyncManager.shared.sync(container: modelContext.container)
-        }
         }
     }
 
@@ -292,9 +290,7 @@ struct SimpleChecklistView: View {
             }
             // Auto-sync on Delete
             Task {
-            Task {
                  await SyncManager.shared.sync(container: modelContext.container)
-            }
             }
         }
     }
@@ -313,9 +309,7 @@ struct SimpleChecklistView: View {
                         
                         // Auto-sync on Toggle Done
                         Task {
-                        Task {
                             await SyncManager.shared.sync(container: modelContext.container)
-                        }
                         }
                     },
                     onEdit: {
@@ -695,7 +689,7 @@ struct AddSimpleChecklistView: View {
                 }
             }
         }
-        }
+
         .alert("Title Required", isPresented: $showingErrorAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -747,6 +741,7 @@ struct SimpleChecklistRow: View {
                 HStack(spacing: 8) {
                     Text(checklist.title)
                         .font(.headline)
+                        .foregroundStyle(checklist.isDone ? .secondary : theme.primary)
                         .strikethrough(checklist.isDone, color: .secondary)
                     
                     // Multi-Tag Display

@@ -67,6 +67,9 @@ struct TagManagementView: View {
                     let newTag = Tag(name: name, colorHex: hexString)
                     modelContext.insert(newTag)
                     try? modelContext.save()
+                    Task {
+                        await SyncManager.shared.sync(container: modelContext.container)
+                    }
                     showingAddTag = false
                 }
             }
@@ -77,10 +80,14 @@ struct TagManagementView: View {
                     tag.name = name
                     tag.colorHex = color.toHex()
                     try? modelContext.save()
+                    Task {
+                        await SyncManager.shared.sync(container: modelContext.container)
+                    }
                     editingTag = nil
                 }
             }
         }
+        .preferredColorScheme(theme.isDark ? .dark : .light)
     }
     
     private func deleteTags(at offsets: IndexSet) {
@@ -88,7 +95,11 @@ struct TagManagementView: View {
             let tag = tags[index]
             modelContext.delete(tag)
         }
+
         try? modelContext.save()
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
     }
 }
 

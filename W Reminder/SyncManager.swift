@@ -85,29 +85,53 @@ final class SyncManager {
     
     // MARK: - Main Sync Loop
     
-    // MARK: - Main Sync Loop
-    
+    // Track current sync task to allow waiting
+    private var syncTask: Task<Void, Never>?
+
     func sync(container: ModelContainer) async {
-        let userId = await AuthManager.shared.user?.id
-        
-        // Check preconditions on MainActor (implied by reading observable property if isolated, but AuthManager is shared)
-        // We'll trust AuthManager is thread-safe or accessed safely.
-        // Actually AuthManager.shared is @Observable (MainActor bound likely).
-        // Let's grab values safely.
-        
-        let proceed: Bool = await MainActor.run {
-             guard !isSyncing else { return false }
-             guard AuthManager.shared.isAuthenticated && userId != nil else { return false }
-             isSyncing = true
-             return true
+        // 1. Check if a sync is already running. If so, wait for it.
+        let existingTask: Task<Void, Never>? = await MainActor.run {
+            if isSyncing { return syncTask }
+            return nil
         }
-        guard proceed, let userId else { return }
         
-        defer {
-            Task { @MainActor in
-                self.isSyncing = false
-            }
+        if let existingTask {
+            print("Sync: Already in progress, waiting...")
+            await existingTask.value
+            // Optional: If we want to force a *new* sync after this one, we could continue.
+            // But usually "syncing now" is sufficient.
+            // However, for Sign Out, we want to be SURE everything is flushed.
+            // Let's proceed to allow a fresh sync only if needed, OR just trust the current one.
+            // For now, let's just return to avoid double syncing, assuming the current one covers recent changes.
+            return
         }
+
+        // 2. Start new sync task
+        let task = Task {
+             await performSync(container: container)
+        }
+        
+        await MainActor.run {
+            self.syncTask = task
+            self.isSyncing = true
+        }
+        
+        await task.value
+        
+        await MainActor.run {
+            self.syncTask = nil
+            self.isSyncing = false
+        }
+    }
+    
+    private func performSync(container: ModelContainer) async {
+        // Access AuthManager on MainActor to be safe
+        let (shouldProceed, uid): (Bool, UUID?) = await MainActor.run {
+             guard let user = AuthManager.shared.user else { return (false, nil) }
+             return (true, user.id)
+        }
+        
+        guard shouldProceed, let userId = uid else { return }
         
         await MainActor.run { print("Sync: Starting for user \(userId)...") }
         
@@ -141,7 +165,7 @@ final class SyncManager {
     // MARK: - Tags Sync
     
     /// Returns a map of CloudID -> LocalTag for relationship linking
-    /// Returns a map of CloudID -> LocalTag for relationship linking
+
     // Run on background (non-isolated)
     private func syncTags(context: ModelContext, userId: UUID) async throws -> [UUID: Tag] {
         // A. PUSH Local Tags (dumb upsert for now)

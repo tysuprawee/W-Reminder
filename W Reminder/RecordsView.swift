@@ -242,6 +242,7 @@ struct RecordsView: View {
         VStack(alignment: .leading, spacing: 6) {
             Text("Completed items")
                 .font(.title2.bold())
+                .foregroundStyle(theme.primary)
             Text("Review, edit, or clear your finished milestones and checklists.")
                 .foregroundStyle(theme.secondary)
         }
@@ -256,8 +257,9 @@ struct RecordsView: View {
 
             Text("No records yet")
                 .font(.headline)
+                .foregroundStyle(theme.primary)
             Text("Finish a milestone or checklist to see it here.")
-                .foregroundStyle(.secondary)
+                .foregroundStyle(theme.secondary)
         }
         .frame(maxWidth: .infinity)
         .padding()
@@ -312,6 +314,11 @@ struct RecordsView: View {
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
+
+        
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
     }
 
     private func saveSimple(
@@ -344,6 +351,11 @@ struct RecordsView: View {
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
+
+        
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
     }
 
     private func deleteMilestones(offsets: IndexSet) {
@@ -353,6 +365,9 @@ struct RecordsView: View {
                 NotificationManager.shared.cancelNotification(for: checklist)
                 modelContext.delete(checklist)
             }
+        }
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
         }
     }
 
@@ -364,15 +379,22 @@ struct RecordsView: View {
                 modelContext.delete(checklist)
             }
         }
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
     }
 
     private func clearMilestones() {
         deleteMilestones(offsets: IndexSet(completedMilestones.indices))
+        // deleteMilestones already calls sync
     }
 
     private func clearSimples() {
         for simple in completedSimples {
             modelContext.delete(simple)
+        }
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
         }
     }
 }

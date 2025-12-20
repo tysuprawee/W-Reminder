@@ -89,6 +89,7 @@ struct CalendarView: View {
         HStack {
             Text(calendarDate, format: .dateTime.month(.wide).year())
                 .font(.title2.bold())
+                .foregroundStyle(theme.primary) // Adding explicit theme color
                 .shadow(color: theme.primary.opacity(0.1), radius: 2, x: 0, y: 1)
             
             Spacer()
@@ -356,7 +357,7 @@ struct CalendarView: View {
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
-        NotificationManager.shared.scheduleNotification(for: checklist)
+
         editingMilestone = nil
         Task {
             await SyncManager.shared.sync(container: modelContext.container)
@@ -392,7 +393,7 @@ struct CalendarView: View {
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
-        NotificationManager.shared.scheduleNotification(for: checklist)
+
         editingSimple = nil
         Task {
             await SyncManager.shared.sync(container: modelContext.container)
