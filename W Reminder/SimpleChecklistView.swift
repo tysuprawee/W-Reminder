@@ -277,7 +277,9 @@ struct SimpleChecklistView: View {
         
         // Auto-sync on Save
         Task {
-            await SyncManager.shared.sync(context: modelContext)
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
         }
     }
 
@@ -290,7 +292,9 @@ struct SimpleChecklistView: View {
             }
             // Auto-sync on Delete
             Task {
-                 await SyncManager.shared.sync(context: modelContext)
+            Task {
+                 await SyncManager.shared.sync(container: modelContext.container)
+            }
             }
         }
     }
@@ -309,7 +313,9 @@ struct SimpleChecklistView: View {
                         
                         // Auto-sync on Toggle Done
                         Task {
-                            await SyncManager.shared.sync(context: modelContext)
+                        Task {
+                            await SyncManager.shared.sync(container: modelContext.container)
+                        }
                         }
                     },
                     onEdit: {
@@ -350,7 +356,7 @@ struct SimpleChecklistView: View {
             refreshID = UUID()
             
             // Sync with Cloud
-            await SyncManager.shared.sync(context: modelContext)
+            await SyncManager.shared.sync(container: modelContext.container)
             
             // Small delay for visual feedback
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -450,6 +456,7 @@ struct AddSimpleChecklistView: View {
     
     // Custom Tag Creation State
     @State private var showingNewTagSheet = false
+    @State private var showingErrorAlert = false
 
     var checklist: SimpleChecklist?
     let theme: Theme
@@ -643,7 +650,10 @@ struct AddSimpleChecklistView: View {
                         }
                         
                         Button {
-                            guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                            if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                                showingErrorAlert = true
+                                return
+                            }
                             onSave(
                                 title,
                                 notes.isEmpty ? nil : notes,
@@ -684,6 +694,12 @@ struct AddSimpleChecklistView: View {
                     showingNewTagSheet = false
                 }
             }
+        }
+        }
+        .alert("Title Required", isPresented: $showingErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Please enter a title for your checklist.")
         }
         .onAppear {
             print("DEBUG: AddSimpleChecklistView appeared. Checklist: \(String(describing: checklist?.title)), ID: \(String(describing: checklist?.id))")

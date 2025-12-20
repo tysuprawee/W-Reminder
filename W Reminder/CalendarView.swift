@@ -356,7 +356,11 @@ struct CalendarView: View {
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
+        NotificationManager.shared.scheduleNotification(for: checklist)
         editingMilestone = nil
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
     }
 
     private func saveSimple(
@@ -388,7 +392,11 @@ struct CalendarView: View {
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
+        NotificationManager.shared.scheduleNotification(for: checklist)
         editingSimple = nil
+        Task {
+            await SyncManager.shared.sync(container: modelContext.container)
+        }
     }
 
     private func isSameDay(_ date1: Date?, as date2: Date) -> Bool {

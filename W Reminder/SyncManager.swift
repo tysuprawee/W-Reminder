@@ -85,15 +85,36 @@ final class SyncManager {
     
     // MARK: - Main Sync Loop
     
-    @MainActor
-    func sync(context: ModelContext) async {
-        guard !isSyncing else { return }
-        guard AuthManager.shared.isAuthenticated, let userId = AuthManager.shared.user?.id else { return }
+    // MARK: - Main Sync Loop
+    
+    func sync(container: ModelContainer) async {
+        let userId = await AuthManager.shared.user?.id
         
-        isSyncing = true
-        defer { isSyncing = false }
+        // Check preconditions on MainActor (implied by reading observable property if isolated, but AuthManager is shared)
+        // We'll trust AuthManager is thread-safe or accessed safely.
+        // Actually AuthManager.shared is @Observable (MainActor bound likely).
+        // Let's grab values safely.
         
-        print("Sync: Starting for user \(userId)...")
+        let proceed: Bool = await MainActor.run {
+             guard !isSyncing else { return false }
+             guard AuthManager.shared.isAuthenticated && userId != nil else { return false }
+             isSyncing = true
+             return true
+        }
+        guard proceed, let userId else { return }
+        
+        defer {
+            Task { @MainActor in
+                self.isSyncing = false
+            }
+        }
+        
+        await MainActor.run { print("Sync: Starting for user \(userId)...") }
+        
+        // Perform sync in background
+        // Create a new context for this background work
+        let context = ModelContext(container)
+        context.autosaveEnabled = false // We handle saves explicitly
         
         do {
             // 1. Sync Tags (Push & Pull)
@@ -105,18 +126,23 @@ final class SyncManager {
             // 3. Sync Milestones (Push & Pull)
             try await syncMilestones(context: context, userId: userId, tagsMap: tagsMap)
             
-            lastSyncTime = Date()
-            print("Sync: Completed successfully.")
+            await MainActor.run {
+                self.lastSyncTime = Date()
+                print("Sync: Completed successfully.")
+            }
         } catch {
-            print("Sync Error: \(error)")
-            errorMessage = error.localizedDescription
+            await MainActor.run {
+                print("Sync Error: \(error)")
+                self.errorMessage = error.localizedDescription
+            }
         }
     }
     
     // MARK: - Tags Sync
     
     /// Returns a map of CloudID -> LocalTag for relationship linking
-    @MainActor
+    /// Returns a map of CloudID -> LocalTag for relationship linking
+    // Run on background (non-isolated)
     private func syncTags(context: ModelContext, userId: UUID) async throws -> [UUID: Tag] {
         // A. PUSH Local Tags (dumb upsert for now)
         let localTags = try context.fetch(FetchDescriptor<Tag>())
@@ -187,7 +213,7 @@ final class SyncManager {
     
     // MARK: - Checklists Sync
     
-    @MainActor
+    // Run on background
     private func syncChecklists(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
         // A. PUSH Local Checklists
         let localLists = try context.fetch(FetchDescriptor<SimpleChecklist>())
@@ -302,7 +328,7 @@ final class SyncManager {
 
 // MARK: - Milestones Sync
 
-    @MainActor
+    // Run on background
     private func syncMilestones(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
         // A. PUSH Local Milestones
         let localLists = try context.fetch(FetchDescriptor<Checklist>()) // Checklist = Milestone

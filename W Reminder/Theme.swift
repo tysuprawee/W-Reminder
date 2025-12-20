@@ -31,9 +31,59 @@ struct Theme: Identifiable, Hashable {
         background: Color(hex: "#FFCF71")
     )
 
+    static let dark = Theme(
+        id: "dark",
+        name: "Midnight Focus",
+        primary: Color(hex: "#E0E0E0"),
+        secondary: Color(hex: "#A0A0A0"),
+        accent: Color(hex: "#7F5AF0"), // Purple accent
+        background: Color(hex: "#16161A") // Dark background
+    )
+
+    static let pastelDream = Theme(
+        id: "pastelDream",
+        name: "Pastel Dream",
+        primary: Color(hex: "#5D5D5D"),
+        secondary: Color(hex: "#8E8E8E"),
+        accent: Color(hex: "#FF8EAA"), // Pink
+        background: Color(hex: "#FFF0F5") // Lavender Blush
+    )
+
+    static let mintFresh = Theme(
+        id: "mintFresh",
+        name: "Mint Fresh",
+        primary: Color(hex: "#2D4436"),
+        secondary: Color(hex: "#5C7A68"),
+        accent: Color(hex: "#4ECDC4"), // Mint
+        background: Color(hex: "#F0FFF4") // Honeydew
+    )
+
+    static let lavenderHaze = Theme(
+        id: "lavenderHaze",
+        name: "Lavender Haze",
+        primary: Color(hex: "#4A4063"),
+        secondary: Color(hex: "#786B94"),
+        accent: Color(hex: "#B39DDB"), // Light Purple
+        background: Color(hex: "#F3E5F5") // Purple 50
+    )
+    
+    static let oceanic = Theme(
+        id: "oceanic",
+        name: "Oceanic",
+        primary: Color(hex: "#E0F7FA"),
+        secondary: Color(hex: "#B2EBF2"),
+        accent: Color(hex: "#00BCD4"),
+        background: Color(hex: "#006064") // Dark Cyan
+    )
+
     static let all: [Theme] = [
         .classic,
-        .warm
+        .warm,
+        .dark,
+        .pastelDream,
+        .mintFresh,
+        .lavenderHaze,
+        .oceanic
     ]
 
     static let `default` = classic
