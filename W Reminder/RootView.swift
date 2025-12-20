@@ -19,7 +19,44 @@ struct RootView: View {
         Theme.all.first { $0.id == selectedThemeId } ?? .default
     }
 
+    @AppStorage("hasSeenWelcome") private var hasSeenWelcome: Bool = false
+    
+    @State private var authInitialized = false
+    private let authManager = AuthManager.shared
+
     var body: some View {
+        Group {
+            if !hasSeenWelcome {
+                WelcomeView {
+                    withAnimation {
+                        hasSeenWelcome = true
+                    }
+                }
+            } else {
+                authenticatedView // This is now the main view for everyone (Guest or Auth)
+            }
+        }
+        .task {
+            await authManager.initialize()
+            withAnimation {
+                authInitialized = true
+            }
+        }
+        .onOpenURL { url in
+            // Handle OAuth redirect
+            print("Received URL: \(url)")
+            authManager.handleIncomingURL(url)
+        }
+        // Listen for session changes (Just for state updates, not navigation blocking)
+        .onChange(of: authManager.session) {old, new in
+             if new != nil {
+                 print("Session updated: User is authenticated")
+             }
+        }
+    }
+
+    // Rename for clarity, though "authenticatedView" contains the Tabs
+    var authenticatedView: some View {
         TabView {
             MilestoneView(theme: theme)
                 .tabItem {
@@ -79,9 +116,39 @@ struct SettingsView: View {
         tags.count
     }
 
+    @State private var showLoginSheet = false
+
     var body: some View {
         NavigationStack {
             List {
+                Section("Account") {
+                    if AuthManager.shared.isAuthenticated {
+                        HStack {
+                            VStack(alignment: .leading) {
+                                Text(AuthManager.shared.user?.email ?? "User")
+                                    .font(.headline)
+                                Text("Cloud Sync Active")
+                                    .font(.caption)
+                                    .foregroundStyle(.green)
+                            }
+                            Spacer()
+                            Button("Sign Out", role: .destructive) {
+                                Task {
+                                    await AuthManager.shared.signOut()
+                                }
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    } else {
+                        Button {
+                            showLoginSheet = true
+                        } label: {
+                            Label("Sign In / Sign Up", systemImage: "person.crop.circle.badge.plus")
+                        }
+                        .foregroundStyle(theme.accent)
+                    }
+                }
+                
                 Section("Notifications") {
                     HStack {
                         Label("Status", systemImage: "bell.badge.fill")
@@ -192,6 +259,9 @@ struct SettingsView: View {
                 }
             }
             .navigationTitle("Settings")
+            .sheet(isPresented: $showLoginSheet) {
+                LoginView()
+            }
         }
     }
 

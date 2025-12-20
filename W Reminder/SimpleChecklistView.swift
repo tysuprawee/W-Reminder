@@ -335,6 +335,9 @@ struct SimpleChecklistView: View {
             // Force refresh by updating refreshID
             refreshID = UUID()
             
+            // Sync with Cloud
+            await SyncManager.shared.sync(context: modelContext)
+            
             // Small delay for visual feedback
             try? await Task.sleep(nanoseconds: 300_000_000)
         }

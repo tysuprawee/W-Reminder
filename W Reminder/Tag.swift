@@ -9,7 +9,9 @@ import SwiftUI
 import SwiftData
 
 @Model
+
 final class Tag {
+    var id: UUID = UUID()
     var name: String
     var colorHex: String
     
@@ -19,10 +21,10 @@ final class Tag {
     @Relationship(inverse: \Checklist.tags) var checklists: [Checklist] = []
     @Relationship(inverse: \SimpleChecklist.tags) var simpleChecklists: [SimpleChecklist] = []
 
-    init(name: String, colorHex: String) {
+    init(id: UUID = UUID(), name: String, colorHex: String) {
+        self.id = id
         self.name = name
         self.colorHex = colorHex
-    
     }
     
     var color: Color {
