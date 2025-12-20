@@ -21,6 +21,7 @@ final class AuthManager {
     var isAuthenticated: Bool { session != nil }
     var isLoading = false
     var errorMessage: String?
+    var successMessage: String?
     
     private init() {
         self.client = SupabaseClient(
@@ -63,7 +64,7 @@ final class AuthManager {
         do {
             let _ = try await client.auth.signUp(email: email, password: password)
             // Note: Depending on Supabase settings, user might need to verify email
-            errorMessage = "Please check your email to verify your account."
+            successMessage = "Account created! Please check your email to verify your account."
         } catch {
             errorMessage = error.localizedDescription
             throw error

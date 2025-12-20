@@ -43,10 +43,15 @@ final class SyncManager {
             context.delete(tag)
         }
         
-        // Clear any other artifacts if using other models
-        try? context.delete(model: ChecklistItem.self)
-        try? context.delete(model: Checklist.self)
+        // Explicitly delete Milestones (Checklist)
+        let milestones = try context.fetch(FetchDescriptor<Checklist>())
+        for milestone in milestones {
+            context.delete(milestone)
+        }
         
+        // ChecklistItems are cascaded, but to be 100% sure we can delete orphans or just confirm deletion
+        // SwiftData cascade should handle it.
+        // clean up any remaining items just in case (orphans)
         try context.save() // Ensure changes are committed immediately
         print("Local data deleted successfully.")
     }
@@ -96,6 +101,9 @@ final class SyncManager {
             
             // 2. Sync Checklists (Push & Pull)
             try await syncChecklists(context: context, userId: userId, tagsMap: tagsMap)
+            
+            // 3. Sync Milestones (Push & Pull)
+            try await syncMilestones(context: context, userId: userId, tagsMap: tagsMap)
             
             lastSyncTime = Date()
             print("Sync: Completed successfully.")
@@ -291,6 +299,159 @@ final class SyncManager {
         
         try context.save()
     }
+
+// MARK: - Milestones Sync
+
+    @MainActor
+    private func syncMilestones(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
+        // A. PUSH Local Milestones
+        let localLists = try context.fetch(FetchDescriptor<Checklist>()) // Checklist = Milestone
+        for list in localLists {
+            let dto = CloudMilestone(
+                id: list.id,
+                userId: userId,
+                title: list.title,
+                notes: list.notes,
+                createdAt: list.createdAt,
+                dueDate: list.dueDate,
+                remind: list.remind,
+                isDone: list.isDone,
+                isStarred: list.isStarred,
+                userOrder: list.userOrder
+            )
+            try await client.from("milestones").upsert(dto).execute()
+            
+            // Push Junctions (Tags)
+            try await client.from("milestone_tags").delete().eq("milestone_id", value: list.id).execute()
+            if !list.tags.isEmpty {
+                let links = list.tags.map { tag in
+                    CloudMilestoneTag(milestoneId: list.id, tagId: tag.id)
+                }
+                try await client.from("milestone_tags").insert(links).execute()
+            }
+            
+            // Push Items (Sub-tasks)
+            // Strategy: Delete all cloud items for this milestone and re-insert local ones (simplest sync)
+            try await client.from("milestone_items").delete().eq("milestone_id", value: list.id).execute()
+            
+            if !list.items.isEmpty {
+                let itemDTOs = list.items.map { item in
+                    CloudMilestoneItem(
+                        id: item.id,
+                        milestoneId: list.id,
+                        text: item.text,
+                        isDone: item.isDone,
+                        position: item.position
+                    )
+                }
+                try await client.from("milestone_items").insert(itemDTOs).execute()
+            }
+        }
+        
+        // B. PULL Cloud Milestones
+        let cloudLists: [CloudMilestone] = try await client.from("milestones").select().execute().value
+        let cloudItems: [CloudMilestoneItem] = try await client.from("milestone_items").select().execute().value
+        let cloudLinks: [CloudMilestoneTag] = try await client.from("milestone_tags").select().execute().value
+        
+        let itemsByMilestone = Dictionary(grouping: cloudItems, by: { $0.milestoneId })
+        let linksByMilestone = Dictionary(grouping: cloudLinks, by: { $0.milestoneId })
+        
+        for cloudList in cloudLists {
+            let listID = cloudList.id
+            var existing: Checklist?
+            
+            if let found = localLists.first(where: { $0.id == listID }) {
+                existing = found
+            }
+            
+            let listToUpdate: Checklist
+            
+            if let existing {
+                listToUpdate = existing
+                listToUpdate.title = cloudList.title
+                listToUpdate.notes = cloudList.notes
+                listToUpdate.createdAt = cloudList.createdAt
+                listToUpdate.dueDate = cloudList.dueDate
+                listToUpdate.remind = cloudList.remind
+                listToUpdate.isDone = cloudList.isDone
+                listToUpdate.isStarred = cloudList.isStarred
+                listToUpdate.userOrder = cloudList.userOrder
+            } else {
+                let newList = Checklist(
+                    title: cloudList.title,
+                    notes: cloudList.notes,
+                    dueDate: cloudList.dueDate,
+                    remind: cloudList.remind,
+                    items: [],
+                    tags: [],
+                    isStarred: cloudList.isStarred,
+                    userOrder: cloudList.userOrder
+                )
+                newList.id = listID
+                newList.createdAt = cloudList.createdAt // Helper init might overwrite, so set explicitly
+                newList.isDone = cloudList.isDone
+                
+                context.insert(newList)
+                listToUpdate = newList
+            }
+            
+            // Sync Items
+            let currentCloudItems = itemsByMilestone[listID] ?? []
+            // Simplest Pull Strategy: Replace all local items with cloud items
+            // (Note: This overwrites local changes if they weren't pushed first. True merge is complex.)
+            
+            // Delete existing local items not in cloud? Or just wipe and recreate?
+            // Safer: Update existing by ID, Add new, Remove missing.
+            
+            var processedItemIDs = Set<UUID>()
+            
+            for cloudItem in currentCloudItems {
+                processedItemIDs.insert(cloudItem.id)
+                
+                if let existingItem = listToUpdate.items.first(where: { $0.id == cloudItem.id }) {
+                    existingItem.text = cloudItem.text
+                    existingItem.isDone = cloudItem.isDone
+                    existingItem.position = cloudItem.position
+                } else {
+                    let newItem = ChecklistItem(
+                        text: cloudItem.text,
+                        isDone: cloudItem.isDone,
+                        position: cloudItem.position
+                    )
+                    newItem.id = cloudItem.id
+                    newItem.checklist = listToUpdate // Link
+                    // listToUpdate.items.append(newItem) // SwiftData inverse auto-handles this via relationship or explicit append
+                    // context.insert(newItem) // Usually implicitly inserted when added to relationship
+                    listToUpdate.items.append(newItem)
+                }
+            }
+            
+            // Remove items that no longer exist in cloud
+            // (Only if we are confident cloud is source of truth. Since we just Pushed, it should be.)
+            let itemsToDelete = listToUpdate.items.filter { !processedItemIDs.contains($0.id) }
+            for item in itemsToDelete {
+                context.delete(item) // Remove from context
+                if let index = listToUpdate.items.firstIndex(of: item) {
+                    listToUpdate.items.remove(at: index)
+                }
+            }
+            
+            // Sync Tags
+            if let links = linksByMilestone[listID] {
+                var newTags: [Tag] = []
+                for link in links {
+                    if let tag = tagsMap[link.tagId] {
+                        newTags.append(tag)
+                    }
+                }
+                listToUpdate.tags = newTags
+            } else {
+                listToUpdate.tags = []
+            }
+        }
+        
+        try context.save()
+    }
 }
 
 // MARK: - Cloud DTOs
@@ -339,6 +500,59 @@ struct CloudChecklistTag: Codable {
     
     enum CodingKeys: String, CodingKey {
         case checklistId = "checklist_id"
+        case tagId = "tag_id"
+    }
+}
+
+// Milestone DTOs
+struct CloudMilestone: Codable, Identifiable {
+    var id: UUID
+    var userId: UUID
+    var title: String
+    var notes: String?
+    var createdAt: Date
+    var dueDate: Date?
+    var remind: Bool
+    var isDone: Bool
+    var isStarred: Bool
+    var userOrder: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case userId = "user_id"
+        case title
+        case notes
+        case createdAt = "created_at"
+        case dueDate = "due_date"
+        case remind
+        case isDone = "is_done"
+        case isStarred = "is_starred"
+        case userOrder = "user_order"
+    }
+}
+
+struct CloudMilestoneItem: Codable, Identifiable {
+    var id: UUID
+    var milestoneId: UUID
+    var text: String
+    var isDone: Bool
+    var position: Int
+    
+    enum CodingKeys: String, CodingKey {
+        case id
+        case milestoneId = "milestone_id"
+        case text
+        case isDone = "is_done"
+        case position
+    }
+}
+
+struct CloudMilestoneTag: Codable {
+    var milestoneId: UUID
+    var tagId: UUID
+    
+    enum CodingKeys: String, CodingKey {
+        case milestoneId = "milestone_id"
         case tagId = "tag_id"
     }
 }

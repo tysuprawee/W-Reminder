@@ -116,10 +116,23 @@ struct LoginView: View {
                 .padding(.bottom)
             }
             .padding()
-            .alert("Error", isPresented: $showingAlert) {
-                Button("OK", role: .cancel) { }
+            .alert("Error", isPresented: Binding<Bool>(
+                get: { authManager.errorMessage != nil },
+                set: { _ in authManager.errorMessage = nil }
+            )) {
+                Button("OK") { authManager.errorMessage = nil }
             } message: {
                 Text(authManager.errorMessage ?? "An unknown error occurred")
+            }
+            .alert("Success", isPresented: Binding<Bool>(
+                get: { authManager.successMessage != nil },
+                set: { _ in authManager.successMessage = nil }
+            )) {
+                Button("OK") { 
+                    authManager.successMessage = nil
+                }
+            } message: {
+                Text(authManager.successMessage ?? "")
             }
             .alert("Warning", isPresented: $showingMergeAlert) {
                 Button("Delete Local Data & Sign In", role: .destructive) {
@@ -157,8 +170,7 @@ struct LoginView: View {
             do {
                 if isSignUp {
                     try await authManager.signUp(email: email, password: password)
-                    authManager.errorMessage = "Account created! Please sign in."
-                    showingAlert = true
+                    // Success is now handled by AuthManager.successMessage observing
                     isSignUp = false
                 } else {
                     try await authManager.signIn(email: email, password: password)

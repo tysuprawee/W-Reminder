@@ -461,6 +461,7 @@ struct AddChecklistView: View {
     
     // Custom Tag Creation State
     @State private var showingNewTagSheet = false
+    @State private var showingErrorAlert = false
 
     var checklist: Checklist?
     let theme: Theme
@@ -503,6 +504,11 @@ struct AddChecklistView: View {
                     showingNewTagSheet = false
                 }
             }
+        }
+        .alert("Title Required", isPresented: $showingErrorAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("Please enter a title for your milestone.")
         }
         .onAppear {
             print("DEBUG: AddChecklistView appeared. Checklist: \(String(describing: checklist?.title)), ID: \(String(describing: checklist?.id))")
@@ -718,9 +724,8 @@ struct AddChecklistView: View {
                 HStack {
                     Button {
                         item.isDone.toggle()
-                        if !items.isEmpty && items.allSatisfy({ $0.isDone }) {
-                            isDone = true
-                        }
+                        // Auto-update parent status
+                        isDone = !items.isEmpty && items.allSatisfy({ $0.isDone })
                     } label: {
                         Image(systemName: item.isDone ? "checkmark.circle.fill" : "circle")
                             .font(.title3)
@@ -735,6 +740,15 @@ struct AddChecklistView: View {
                             withAnimation {
                                 if let idx = items.firstIndex(where: { $0.id == item.id }) {
                                     items.remove(at: idx)
+                                    // Re-evaluate completion status after deletion
+                                    if !items.isEmpty {
+                                        isDone = items.allSatisfy({ $0.isDone })
+                                    } else {
+                                        // If no items left, do we auto-complete? Or keep manual?
+                                        // Let's keep existing state or maybe false?
+                                        // Usually empty list isn't "done" by task standards, but user might manually toggle.
+                                        // Let's leave it alone if empty, only update if items exist.
+                                    }
                                 }
                             }
                         } label: {
@@ -753,7 +767,9 @@ struct AddChecklistView: View {
             Button {
                 withAnimation {
                     let newPos = (items.map { $0.position }.max() ?? -1) + 1
-                    items.append(ChecklistItem(text: "", position: newPos))
+                    items.append(ChecklistItem(text: "New item", position: newPos))
+                    // Adding a new (incomplete) item always makes the list incomplete
+                    isDone = false
                 }
             } label: {
                 Label("Add Item", systemImage: "plus")
@@ -786,7 +802,10 @@ struct AddChecklistView: View {
                 }
                 
                 Button {
-                    guard !title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty else { return }
+                    if title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                        showingErrorAlert = true
+                        return
+                    }
                     onSave(
                         title,
                         notes.isEmpty ? nil : notes,
