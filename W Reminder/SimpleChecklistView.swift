@@ -274,6 +274,11 @@ struct SimpleChecklistView: View {
         NotificationManager.shared.scheduleNotification(for: checklist)
         verifyNotificationPermission()
         editing = nil
+        
+        // Auto-sync on Save
+        Task {
+            await SyncManager.shared.sync(context: modelContext)
+        }
     }
 
     private func delete(offsets: IndexSet, in source: [SimpleChecklist]) {
@@ -282,6 +287,10 @@ struct SimpleChecklistView: View {
                 let checklist = source[index]
                 NotificationManager.shared.cancelNotification(for: checklist)
                 modelContext.delete(checklist)
+            }
+            // Auto-sync on Delete
+            Task {
+                 await SyncManager.shared.sync(context: modelContext)
             }
         }
     }
@@ -297,6 +306,11 @@ struct SimpleChecklistView: View {
                             checklist.isDone.toggle()
                         }
                         NotificationManager.shared.cancelNotification(for: checklist)
+                        
+                        // Auto-sync on Toggle Done
+                        Task {
+                            await SyncManager.shared.sync(context: modelContext)
+                        }
                     },
                     onEdit: {
                         print("DEBUG: Editing simple checklist \(checklist.title)")

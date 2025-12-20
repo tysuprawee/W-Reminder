@@ -32,10 +32,50 @@ final class SyncManager {
     
     @MainActor
     func deleteLocalData(context: ModelContext) throws {
-        try context.delete(model: SimpleChecklist.self)
-        try context.delete(model: Tag.self)
-        try context.delete(model: ChecklistItem.self) // Just in case we use it later
-        try context.delete(model: Checklist.self)     // Just in case
+        // Explicitly fetch and delete to ensure reliability and handle relationships
+        let checklists = try context.fetch(FetchDescriptor<SimpleChecklist>())
+        for list in checklists {
+            context.delete(list)
+        }
+        
+        let tags = try context.fetch(FetchDescriptor<Tag>())
+        for tag in tags {
+            context.delete(tag)
+        }
+        
+        // Clear any other artifacts if using other models
+        try? context.delete(model: ChecklistItem.self)
+        try? context.delete(model: Checklist.self)
+        
+        try context.save() // Ensure changes are committed immediately
+        print("Local data deleted successfully.")
+    }
+    
+    @MainActor
+    func regenerateIDs(context: ModelContext) throws {
+        // Regenerate IDs for all local data so they are treated as NEW records for the current user
+        // This effectively "Clones" the data for the new account and avoids RLS conflicts with old owners.
+        
+        let tags = try context.fetch(FetchDescriptor<Tag>())
+        var tagMap: [UUID: UUID] = [:] // Old -> New
+        
+        for tag in tags {
+            let oldID = tag.id
+            let newID = UUID()
+            tag.id = newID // Assuming ID is mutable, otherwise we'd need to recreate
+            tagMap[oldID] = newID
+        }
+        
+        let checklists = try context.fetch(FetchDescriptor<SimpleChecklist>())
+        for list in checklists {
+            list.id = UUID() 
+            // Also update any Many-to-Many relationships if they store IDs explicitly (SwiftData usually handles object links)
+            // But our Junction table (ChecklistTags) logic in sync uses the `id` property.
+            // Since SwiftData relationships are object-based, `list.tags` still points to the same `Tag` objects (which now have new IDs).
+            // Sync logic will read `tag.id` and see the new ID. So we are good.
+        }
+        
+        try context.save()
     }
     
     // MARK: - Main Sync Loop

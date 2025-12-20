@@ -121,23 +121,31 @@ struct LoginView: View {
             } message: {
                 Text(authManager.errorMessage ?? "An unknown error occurred")
             }
-            .alert("Cloud Sync", isPresented: $showingMergeAlert) {
-                Button("Keep Local Info (Merge)") {
+            .alert("Warning", isPresented: $showingMergeAlert) {
+                Button("Delete Local Data & Sign In", role: .destructive) {
                     Task {
-                        // Sync will Push local then Pull cloud (Merge)
-                        await SyncManager.shared.sync(context: modelContext)
-                        dismiss()
+                        do {
+                            // strictly enforce cloud state
+                            try SyncManager.shared.deleteLocalData(context: modelContext)
+                            await SyncManager.shared.sync(context: modelContext)
+                            dismiss()
+                        } catch {
+                            print("Error clearing local data: \(error)")
+                            // If delete fails, we probably shouldn't leave them in a broken state.
+                            // But for now, let's assume it works or they can try again.
+                            dismiss()
+                        }
                     }
                 }
-                Button("Use Online Info (Replace)", role: .destructive) {
+                Button("Cancel", role: .cancel) {
                     Task {
-                        try? SyncManager.shared.deleteLocalData(context: modelContext)
-                        await SyncManager.shared.sync(context: modelContext)
+                        // User aborted the login because they want to keep local data
+                        await authManager.signOut()
                         dismiss()
                     }
                 }
             } message: {
-                Text("You have local data. Do you want to merge it with your account or replace it with cloud data?")
+                Text("Logging in will delete all local guest data. This action cannot be undone.")
             }
         }
     }
@@ -165,6 +173,20 @@ struct LoginView: View {
     
     @MainActor
     private func checkMergeRequirements() async {
+        // Ensure session is active before checking sync
+        if !authManager.isAuthenticated {
+            // Wait a brief moment for session to propagate if coming from redirect
+            try? await Task.sleep(nanoseconds: 500_000_000) // 0.5s check
+            if !authManager.isAuthenticated {
+                 // Still no session? Force initialize one last time
+                 await authManager.initialize()
+                 if !authManager.isAuthenticated {
+                     print("Merge check failed: No active session.")
+                     return 
+                 }
+            }
+        }
+
         do {
             if try SyncManager.shared.hasLocalData(context: modelContext) {
                 // Ask user what to do

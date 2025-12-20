@@ -104,6 +104,7 @@ struct RootView: View {
 }
 
 struct SettingsView: View {
+    @Environment(\.modelContext) private var modelContext // Add this
     @Binding var selectedThemeId: String
     @Binding var notificationStatus: UNAuthorizationStatus
     @Binding var notificationSound: NotificationSound
@@ -116,16 +117,17 @@ struct SettingsView: View {
         tags.count
     }
 
+    @State private var authManager = AuthManager.shared
     @State private var showLoginSheet = false
 
     var body: some View {
         NavigationStack {
             List {
                 Section("Account") {
-                    if AuthManager.shared.isAuthenticated {
+                    if authManager.isAuthenticated {
                         HStack {
                             VStack(alignment: .leading) {
-                                Text(AuthManager.shared.user?.email ?? "User")
+                                Text(authManager.user?.email ?? "User")
                                     .font(.headline)
                                 Text("Cloud Sync Active")
                                     .font(.caption)
@@ -134,7 +136,12 @@ struct SettingsView: View {
                             Spacer()
                             Button("Sign Out", role: .destructive) {
                                 Task {
-                                    await AuthManager.shared.signOut()
+                                    // 1. Sync one last time (Backup)
+                                    await SyncManager.shared.sync(context: modelContext)
+                                    // 2. Wipe local data (Clean Slate)
+                                    try? SyncManager.shared.deleteLocalData(context: modelContext)
+                                    // 3. Sign Out
+                                    await authManager.signOut()
                                 }
                             }
                             .buttonStyle(.bordered)

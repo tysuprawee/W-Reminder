@@ -25,8 +25,7 @@ final class AuthManager {
     private init() {
         self.client = SupabaseClient(
             supabaseURL: SupabaseConfig.projectURL,
-            supabaseKey: SupabaseConfig.apiKey,
-            auth: AuthClient.Configuration(emitLocalSessionAsInitialSession: true)
+            supabaseKey: SupabaseConfig.apiKey
         )
     }
     
