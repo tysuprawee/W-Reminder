@@ -291,7 +291,7 @@ struct SettingsView: View {
                     HStack {
                         Label("Version", systemImage: "info.circle")
                         Spacer()
-                        Text("1.01 beta")
+                        Text("1.02 beta")
                             .foregroundStyle(.secondary)
                             .font(.subheadline)
                     }
