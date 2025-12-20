@@ -144,10 +144,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     private func getNotificationSound() -> UNNotificationSound {
         if let soundName = UserDefaults.standard.string(forKey: "notificationSound") {
             switch soundName {
-            case "Bell": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "bell.caf"))
-            case "Chime": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "chime.caf"))
-            case "Alert": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "alert.caf"))
-            case "Ping": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "ping.caf"))
+            case "Bells Echo": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "bells-echo.wav"))
+            case "Game": return UNNotificationSound(named: UNNotificationSoundName(rawValue: "game.wav"))
             default: return .default
             }
         }

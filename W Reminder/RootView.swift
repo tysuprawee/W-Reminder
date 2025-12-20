@@ -8,6 +8,26 @@ import SwiftData
 import UserNotifications
 import AVFoundation
 
+// Simple Audio Player for Previews
+class SoundPlayer: NSObject {
+    static let shared = SoundPlayer()
+    var audioPlayer: AVAudioPlayer?
+
+    func playSound(named fileName: String) {
+        guard let url = Bundle.main.url(forResource: fileName, withExtension: nil) else {
+            print("Sound file not found: \(fileName)")
+            return
+        }
+        
+        do {
+            audioPlayer = try AVAudioPlayer(contentsOf: url)
+            audioPlayer?.play()
+        } catch {
+            print("Could not play sound file: \(error)")
+        }
+    }
+}
+
 struct RootView: View {
     @AppStorage("selectedThemeId") private var selectedThemeId: String = Theme.default.id
     @AppStorage("notificationSound") private var notificationSound: NotificationSound = .default
@@ -297,23 +317,14 @@ struct SettingsView: View {
     }
     
     private func playPreviewSound() {
-        // Play system sound based on selected notification sound
-        let soundID: SystemSoundID
-        
-        switch notificationSound {
-        case .default:
-            soundID = 1007 // SMS Received 1
-        case .bell:
-            soundID = 1013 // SMS Received 5
-        case .chime:
-            soundID = 1016 // SMS Received 6
-        case .alert:
-            soundID = 1005 // New Mail
-        case .ping:
-            soundID = 1003 // SMS Received 3
+        // Play the actual sound file using a simple helper
+        if let fileName = notificationSound.fileName {
+            // Needed to play custom sound file for preview
+            SoundPlayer.shared.playSound(named: fileName)
+        } else {
+            // Default System Sound
+            AudioServicesPlaySystemSound(1007)
         }
-        
-        AudioServicesPlaySystemSound(soundID)
     }
     
     private func openAppSettings() {
@@ -364,20 +375,16 @@ struct SettingsView: View {
 
 enum NotificationSound: String, CaseIterable, Identifiable {
     case `default` = "Default"
-    case bell = "Bell"
-    case chime = "Chime"
-    case alert = "Alert"
-    case ping = "Ping"
+    case bellsEcho = "Bells Echo"
+    case game = "Game"
     
     var id: String { self.rawValue }
     
     var fileName: String? {
         switch self {
         case .default: return nil
-        case .bell: return "bell.caf"
-        case .chime: return "chime.caf"
-        case .alert: return "alert.caf"
-        case .ping: return "ping.caf"
+        case .bellsEcho: return "bells-echo.wav"
+        case .game: return "game.wav"
         }
     }
 }
@@ -386,4 +393,3 @@ enum NotificationSound: String, CaseIterable, Identifiable {
     RootView()
         .modelContainer(for: [Checklist.self, ChecklistItem.self, SimpleChecklist.self, Tag.self], inMemory: true)
 }
-
