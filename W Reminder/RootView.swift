@@ -276,6 +276,7 @@ struct SettingsView: View {
                                         .foregroundStyle(option.accent)
                                 }
                             }
+                            .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
                     }

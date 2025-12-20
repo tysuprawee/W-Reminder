@@ -811,7 +811,7 @@ struct SimpleChecklistRow: View {
                 .fill(
                     checklist.isStarred 
                         ? theme.accent.opacity(0.12)
-                        : theme.background
+                        : (theme.isDark ? Color.white.opacity(0.05) : theme.background)
                 )
                 .overlay(
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
