@@ -1,9 +1,8 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
-import SwiftData
-import UserNotifications
 import UIKit
+import WidgetKit
 
 struct SimpleChecklistView: View {
     @Environment(\.modelContext) private var modelContext
@@ -13,14 +12,14 @@ struct SimpleChecklistView: View {
     @State private var showingAdd = false
     @State private var editing: SimpleChecklist?
     @State private var showPermissionAlert = false
-    @State private var sortOption: SortOption = .manual
+    @AppStorage("checklistSortOption") private var sortOption: SortOption = .manual
     @State private var filterTag: Tag? = nil // nil = all
     @State private var showOnlyStarred = false
     @State private var refreshID = UUID() // Force refresh TimelineView
     @State private var showStreakInfo = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true // Listen to setting
 
-    enum SortOption {
+    enum SortOption: String, CaseIterable {
         case manual
         case earliestDue
         case latestDue
@@ -311,6 +310,7 @@ struct SimpleChecklistView: View {
         editing = nil
         
         // Auto-sync on Save
+        WidgetCenter.shared.reloadAllTimelines()
         Task {
             await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
@@ -326,6 +326,7 @@ struct SimpleChecklistView: View {
             }
             // Auto-sync on Delete
             try? modelContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
             Task {
                  await SyncManager.shared.sync(container: modelContext.container, silent: true)
             }
@@ -339,40 +340,68 @@ struct SimpleChecklistView: View {
                     checklist: checklist,
                     theme: theme,
                     onToggleDone: {
+                        print("Tap Done: item=\(checklist.title)")
+                        let targetState = !checklist.isDone
+                        
+                        // 1. Idempotency Check
+                        if checklist.isDone == targetState {
+                             print("Done ignored: already \(targetState) -> no XP")
+                             return
+                        }
+                        
+                        // 2. Set State
                         withAnimation(.easeInOut) {
-                            checklist.isDone.toggle()
+                            checklist.isDone = targetState
                         }
                         NotificationManager.shared.cancelNotification(for: checklist)
                         
-                        // Haptic Feedback
-                        if isHapticsEnabled && checklist.isDone {
-                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                            generator.impactOccurred()
-                        }
-                        
-                        if checklist.isDone {
-                            StreakManager.shared.incrementStreak()
+                        // 3. Immediate Save Transaction
+                        print("Saving SwiftData: item=\(checklist.title) isDone=\(targetState)")
+                        do {
+                            try modelContext.save()
+                            print("Save OK: item=\(checklist.title) persisted")
                             
-                            // Handle Recurrence (Loop)
-                            if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
-                                if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
-                                    let newItem = SimpleChecklist(
-                                        title: checklist.title,
-                                        notes: checklist.notes,
-                                        dueDate: nextDate,
-                                        remind: checklist.remind,
-                                        isDone: false,
-                                        tags: checklist.tags,
-                                        isStarred: checklist.isStarred,
-                                        userOrder: checklist.userOrder,
-                                        recurrenceRule: rule
-                                    )
-                                    modelContext.insert(newItem)
+                            // 4. Rewards (Only if saved successfully as Done)
+                            if targetState { // isDone == true
+                                // Haptic
+                                if isHapticsEnabled {
+                                    let generator = UIImpactFeedbackGenerator(style: .medium)
+                                    generator.impactOccurred()
+                                }
+                                
+                                StreakManager.shared.incrementStreak()
+                                print("XP granted: +10 itemId=\(checklist.title)")
+                                
+                                // Handle Recurrence (Loop)
+                                if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
+                                    if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
+                                        let newItem = SimpleChecklist(
+                                            title: checklist.title,
+                                            notes: checklist.notes,
+                                            dueDate: nextDate,
+                                            remind: checklist.remind,
+                                            isDone: false,
+                                            tags: checklist.tags,
+                                            isStarred: checklist.isStarred,
+                                            userOrder: checklist.userOrder,
+                                            recurrenceRule: rule
+                                        )
+                                        modelContext.insert(newItem)
+                                        try? modelContext.save()
+                                    }
                                 }
                             }
+                        } catch {
+                            print("Save FAILED: item=\(checklist.title) rollback error=\(error)")
+                            // Rollback
+                            withAnimation {
+                                checklist.isDone = !targetState
+                            }
+                            return
                         }
                         
                         // Auto-sync on Toggle Done
+                        WidgetCenter.shared.reloadAllTimelines()
                         Task {
                             await SyncManager.shared.sync(container: modelContext.container, silent: true)
                         }
@@ -858,6 +887,8 @@ struct SimpleChecklistRow: View {
     var onEdit: () -> Void = {}
     
     @State private var isMarkingDone = false
+    @State private var completionTask: Task<Void, Error>? = nil
+    @Environment(\.scenePhase) private var scenePhase
 
     var body: some View {
         HStack(spacing: 12) {
@@ -875,8 +906,11 @@ struct SimpleChecklistRow: View {
                      generator.impactOccurred()
                      
                      // Delay
-                     Task {
+                     completionTask = Task {
                          try? await Task.sleep(nanoseconds: 600_000_000) // 0.6s
+                         
+                         if Task.isCancelled { return }
+                         
                          await MainActor.run {
                              onToggleDone()
                              isMarkingDone = false
@@ -996,6 +1030,28 @@ struct SimpleChecklistRow: View {
                 onToggleDone()
             } label: {
                 Label(checklist.isDone ? "Mark Undone" : "Mark Done", systemImage: checklist.isDone ? "circle" : "checkmark.circle")
+            }
+        }
+        .onChange(of: scenePhase) { old, new in
+            if new == .inactive || new == .background {
+                if isMarkingDone {
+                    // Cancel delayed task to avoid double-toggle
+                    completionTask?.cancel()
+                    completionTask = nil
+                    
+                    // Force complete immediately
+                    onToggleDone()
+                    isMarkingDone = false
+                }
+            }
+        }
+        .onDisappear {
+            if isMarkingDone {
+               completionTask?.cancel()
+               completionTask = nil
+               
+               onToggleDone()
+               isMarkingDone = false
             }
         }
     }

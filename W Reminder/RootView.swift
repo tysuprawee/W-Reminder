@@ -8,6 +8,7 @@ import SwiftData
 import UserNotifications
 import AVFoundation
 import AudioToolbox
+import WidgetKit
 
 // Simple Audio Player for Previews
 class SoundPlayer: NSObject {
@@ -394,6 +395,17 @@ struct SettingsView: View {
                 .onChange(of: selectedThemeId) { oldValue, newValue in
                     Task {
                         await authManager.updateSettings(themeId: newValue, sound: notificationSound.rawValue)
+                    }
+                    // Sync to Widget
+                    if let defaults = UserDefaults(suiteName: SharedPersistence.appGroupIdentifier) {
+                        defaults.set(newValue, forKey: "widgetThemeId")
+                        WidgetCenter.shared.reloadAllTimelines()
+                    }
+                }
+                .onAppear {
+                    // Ensure widget has current theme
+                    if let defaults = UserDefaults(suiteName: SharedPersistence.appGroupIdentifier) {
+                        defaults.set(selectedThemeId, forKey: "widgetThemeId")
                     }
                 }
 
