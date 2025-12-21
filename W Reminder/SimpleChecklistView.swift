@@ -76,30 +76,9 @@ struct SimpleChecklistView: View {
                             showStreakInfo = true
                         }
                         .sheet(isPresented: $showStreakInfo) {
-                            VStack(spacing: 16) {
-                                Image(systemName: "flame.fill")
-                                    .font(.system(size: 50))
-                                    .foregroundStyle(.orange)
-                                    .padding(.top)
-                                Text("Streak Power!")
-                                    .font(.title2.bold())
-                                Text("Complete at least one task every day to keep your streak alive. Don't let the fire go out!")
-                                    .font(.body)
-                                    .multilineTextAlignment(.center)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal)
-                                    .fixedSize(horizontal: false, vertical: true)
-                                
-                                Button("Got it!") {
-                                    showStreakInfo = false
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.orange)
-                                .padding(.top)
-                            }
-                            .padding()
-                            .presentationDetents([.fraction(0.35)])
-                            .presentationDragIndicator(.visible)
+                            ProfilePopupView(theme: theme)
+                                .presentationDetents([.medium, .large])
+                                .presentationDragIndicator(.visible)
                         }
                         .padding(.trailing, 8)
                         
@@ -884,6 +863,8 @@ struct SimpleChecklistRow: View {
         HStack(spacing: 12) {
             // Checkbox Button with Animation
             Button {
+                guard !isMarkingDone else { return }
+                
                 if !checklist.isDone {
                      // Check with delay
                      withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
@@ -913,6 +894,7 @@ struct SimpleChecklistRow: View {
                     .symbolEffect(.bounce, value: isMarkingDone)
             }
             .buttonStyle(.plain)
+            .disabled(isMarkingDone) // Prevent spamming
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {

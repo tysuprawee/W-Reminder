@@ -8,6 +8,7 @@
 import Foundation
 import SwiftData
 import SwiftUI
+import Combine
 
 /// Manages Experience (EXP), Levels, and Achievements
 @Observable
@@ -21,17 +22,21 @@ final class LevelManager {
     var currentLevel: Int = 1
     
     // Achievements
-    // In a real app, this might be a separate Model, but for simplicity we can store unlocked IDs
     var unlockedAchievementIds: [String] = []
+    
+    // Event Publishers for UI Animations
+    @ObservationIgnored let xpGainedSubject = PassthroughSubject<Int, Never>()
+    @ObservationIgnored let achievementUnlockedSubject = PassthroughSubject<Achievement, Never>()
     
     // Config
     private let expPerTask = 10
     private let expPerStreak = 25
+    private let expPerLevelBase = 50 // New easier curve (was 100)
     
     // Persistence Keys
     private let keyExp = "userExp"
     private let keyLevel = "userLevel"
-    private let keyAchievements = "userAchievements" // Comma separated string
+    private let keyAchievements = "userAchievements" 
     
     private init() {
         loadData()
@@ -39,59 +44,49 @@ final class LevelManager {
     
     // MARK: - Logic
     
-    // Calculated based on a curve, e.g. Level = sqrt(EXP) * constant
-    // Or simple milestone list.
-    // Let's use: Level N requires 100 * N EXP total? Or simpler: 
-    // Level 1: 0-100
-    // Level 2: 101-250
-    // etc.
+    // Simple Formula: Threshold = Level * 50
+    // Level 1 -> 50 XP to reach Level 2
+    // Level 2 -> 100 XP (Total 150) to reach Level 3? 
+    // Wait, let's stick to "XP Accumulated".
+    // Level = (TotalEXP / 50) + 1
     
-    // Simple Formula: Threshold = Level * 100
-    // Current Level Progress
     var expForNextLevel: Int {
-        return currentLevel * 100
+        return currentLevel * expPerLevelBase
     }
     
     var expProgress: Double {
-        // This is simplified. Proper RPG logic usually tracks "current level exp" separately.
-        // Let's assume currentExp accumulates forever (Total EXP).
-        // We need to calculate how much EXP was needed for *previous* levels to know "current bar".
-        // Let's keep it very simple: Reset EXP on Level Up? No, Total EXP is better for leaderboard.
-        
-        // Total EXP needed for Level L = 50 * L * (L-1) ... Argh.
-        // Let's just use:
-        // Level = floor(0.1 * sqrt(EXP)) + 1
-        // EXP = ((Level-1)/0.1)^2
-        // Let's stick to linear-ish for now: 100xp per level increment.
-        // Level 1: 0-99
-        // Level 2: 100-199
-        // Level 3: 200...
-        
-        let levelBase = (currentLevel - 1) * 100
+        // Calculate progress within current level
+        // Previous Level Cap = (Level-1) * 50
+        let levelBase = (currentLevel - 1) * expPerLevelBase
         let currentLevelExp = currentExp - levelBase
-        return Double(currentLevelExp) / 100.0
+        
+        let requiredForNext = expPerLevelBase // Linear progression for simplicity (every level needs 50 new XP)
+        // If we want scaling: required = Level * 50.
+        // Let's stick to Linear (Every 50xp = 1 Level) to keep it fast/easy as requested.
+        
+        return Double(currentLevelExp) / Double(requiredForNext)
     }
     
     func addExp(_ amount: Int) {
         currentExp += amount
+        xpGainedSubject.send(amount) // Trigger Animation
         checkLevelUp()
         saveData()
     }
     
     func checkLevelUp() {
-        // Formula: Level = (EXP / 100) + 1
-        let calculatedLevel = (currentExp / 100) + 1
+        // Linear Formula: Level = (TotalEXP / 50) + 1
+        let calculatedLevel = (currentExp / expPerLevelBase) + 1
         
         if calculatedLevel > currentLevel {
             // Level Up!
             currentLevel = calculatedLevel
-            // Trigger Animation or Celebration via StreakManager
+            // Trigger Animation via StreakManager (or we can add a new one)
             StreakManager.shared.showCelebration = true
             
-            // Re-hide celebration after delay? StreakManager handles that.
-             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                 StreakManager.shared.showCelebration = false
-             }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                StreakManager.shared.showCelebration = false
+            }
         }
     }
     
@@ -112,8 +107,11 @@ final class LevelManager {
         if !unlockedAchievementIds.contains(id) {
             unlockedAchievementIds.append(id)
             saveData()
-            // Could show a specific "Achievement Unlocked" toast
-            print("Achievement Unlocked: \(id)")
+            
+            if let achievement = getAchievement(id: id) {
+                achievementUnlockedSubject.send(achievement) // Trigger Banner
+                print("Achievement Unlocked: \(id)")
+            }
         }
     }
     
@@ -173,6 +171,19 @@ final class LevelManager {
         self.unlockedAchievementIds = Array(mergedSet).filter { !$0.isEmpty }
         
         saveData() // Persist merged state
+    }
+    
+    /// Clears all local gamification data (Used on Sign Out)
+    func resetLocalData() {
+        currentExp = 0
+        currentLevel = 1
+        unlockedAchievementIds = []
+        
+        let defaults = UserDefaults.standard
+        defaults.removeObject(forKey: keyExp)
+        defaults.removeObject(forKey: keyLevel)
+        defaults.removeObject(forKey: keyAchievements)
+        defaults.synchronize()
     }
 }
 

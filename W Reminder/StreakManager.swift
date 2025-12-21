@@ -150,4 +150,16 @@ final class StreakManager {
         let userDefaults = defaults ?? .standard
         return userDefaults.object(forKey: keyLastDate) as? Date
     }
+    
+    /// Clears all local streak data (Used on Sign Out)
+    func resetLocalData() {
+        currentStreak = 0
+        isStreakActiveToday = false
+        
+        let userDefaults = defaults ?? .standard
+        userDefaults.removeObject(forKey: keyStreak)
+        userDefaults.removeObject(forKey: keyLastDate)
+        userDefaults.synchronize()
+        WidgetCenter.shared.reloadAllTimelines()
+    }
 }

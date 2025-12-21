@@ -88,6 +88,8 @@ struct RootView: View {
             if syncManager.isSyncing {
                 SyncLoadingView()
             }
+            
+            GamificationOverlay()
         }
     }
 
@@ -137,8 +139,7 @@ struct RootView: View {
             }
         }
         
-        // Check Mute Status
-        MuteDetector.shared.check()
+
     }
 }
 
@@ -241,9 +242,6 @@ struct SettingsView: View {
     @State private var showLoginSheet = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
         
-    // Observe MuteDetector updates
-    var muteDetector = MuteDetector.shared
-
     var body: some View {
         NavigationStack {
             List {
@@ -264,6 +262,8 @@ struct SettingsView: View {
                                     await SyncManager.shared.sync(container: modelContext.container)
                                     // 2. Wipe local data (Clean Slate)
                                     try? SyncManager.shared.deleteLocalData(context: modelContext)
+                                    LevelManager.shared.resetLocalData()
+                                    StreakManager.shared.resetLocalData()
                                     // 3. Sign Out
                                     await authManager.signOut()
                                 }
@@ -296,35 +296,23 @@ struct SettingsView: View {
                     }
                     .tint(theme.accent)
                     
-                    // Silent Mode Status
-                    HStack(alignment: .center, spacing: 12) {
-                        Image(systemName: muteDetector.isMuted ? "bell.slash.fill" : "bell.fill")
-                            .foregroundStyle(muteDetector.isMuted ? .orange : .green)
+                    // Silent Mode Info
+                    HStack(alignment: .top, spacing: 12) {
+                        Image(systemName: "bell.slash")
+                            .foregroundStyle(.secondary)
                             .font(.title3)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text(muteDetector.isMuted ? "Silent Mode On" : "Sound On")
+                            Text("Silent Mode")
                                 .font(.subheadline.bold())
-                                .foregroundStyle(muteDetector.isMuted ? .orange : .green)
+                                .foregroundStyle(.primary)
                             
-                            Text(muteDetector.isMuted ? "App sounds will be silent." : "App sounds will play.")
+                            Text("If your device's Silent Switch is on, notification sounds will be muted and you will only feel vibrations.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
-                        
-                        Spacer()
-                        
-                        Button("Check") {
-                            muteDetector.check()
-                        }
-                        .font(.caption)
-                        .buttonStyle(.bordered)
                     }
-                    .padding(.vertical, 4)
-                    .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
-                        // Periodic check while settings open
-                        muteDetector.check()
-                    }
+                    .padding(.vertical, 8)
                     
                     if notificationStatus != .authorized {
                         Button {
