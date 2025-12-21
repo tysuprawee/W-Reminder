@@ -10,11 +10,13 @@ final class ChecklistItem {
     var text: String
     var isDone: Bool = false
     var position: Int
+    var dueDate: Date? // Added per user request
     var checklist: Checklist? // Inverse relationship
-    init(text: String, isDone: Bool = false, position: Int = 0) {
+    init(text: String, isDone: Bool = false, position: Int = 0, dueDate: Date? = nil) {
         self.text = text
         self.isDone = isDone
         self.position = position
+        self.dueDate = dueDate
     }
 }
 

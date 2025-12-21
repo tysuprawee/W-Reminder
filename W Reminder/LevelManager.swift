@@ -44,27 +44,31 @@ final class LevelManager {
     
     // MARK: - Logic
     
-    // Simple Formula: Threshold = Level * 50
-    // Level 1 -> 50 XP to reach Level 2
-    // Level 2 -> 100 XP (Total 150) to reach Level 3? 
-    // Wait, let's stick to "XP Accumulated".
-    // Level = (TotalEXP / 50) + 1
+    // Quadratic Formula: TotalXP = 50 * (Level - 1)^2
+    // Level = sqrt(TotalXP / 50) + 1
+    //
+    // Lvl 1: 0 XP
+    // Lvl 2: 50 XP (Gap 50)
+    // Lvl 3: 200 XP (Gap 150)
+    // Lvl 4: 450 XP (Gap 250)
+    // Harder as you go!
     
     var expForNextLevel: Int {
-        return currentLevel * expPerLevelBase
+        return 50 * (currentLevel * currentLevel)
+    }
+    
+    var expForCurrentLevel: Int {
+        return 50 * ((currentLevel - 1) * (currentLevel - 1))
     }
     
     var expProgress: Double {
-        // Calculate progress within current level
-        // Previous Level Cap = (Level-1) * 50
-        let levelBase = (currentLevel - 1) * expPerLevelBase
-        let currentLevelExp = currentExp - levelBase
+        let currentBase = expForCurrentLevel
+        let nextBase = expForNextLevel
+        let required = nextBase - currentBase
+        let gained = currentExp - currentBase
         
-        let requiredForNext = expPerLevelBase // Linear progression for simplicity (every level needs 50 new XP)
-        // If we want scaling: required = Level * 50.
-        // Let's stick to Linear (Every 50xp = 1 Level) to keep it fast/easy as requested.
-        
-        return Double(currentLevelExp) / Double(requiredForNext)
+        guard required > 0 else { return 0 }
+        return Double(gained) / Double(required)
     }
     
     func addExp(_ amount: Int) {
@@ -75,14 +79,17 @@ final class LevelManager {
     }
     
     func checkLevelUp() {
-        // Linear Formula: Level = (TotalEXP / 50) + 1
-        let calculatedLevel = (currentExp / expPerLevelBase) + 1
+        // Recalculate based on total EXP
+        let calculatedLevel = Int(sqrt(Double(currentExp) / 50.0)) + 1
         
         if calculatedLevel > currentLevel {
             // Level Up!
             currentLevel = calculatedLevel
-            // Trigger Animation via StreakManager (or we can add a new one)
+            // Trigger Animation via StreakManager
             StreakManager.shared.showCelebration = true
+            
+            // Check Level-based achievements
+            checkLevelAchievements()
             
             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
                 StreakManager.shared.showCelebration = false
@@ -93,14 +100,50 @@ final class LevelManager {
     // MARK: - Achievements
     
     func checkAchievements(totalTasks: Int, streak: Int) {
-        // Example Achievements
+        // Task Count Achievements (Very Frequent Rewards)
         if totalTasks >= 1 { unlock(id: "first_task") }
         if totalTasks >= 10 { unlock(id: "10_tasks") }
+        if totalTasks >= 25 { unlock(id: "25_tasks") }
         if totalTasks >= 50 { unlock(id: "50_tasks") }
+        if totalTasks >= 75 { unlock(id: "75_tasks") }
+        if totalTasks >= 100 { unlock(id: "100_tasks") }
+        if totalTasks >= 150 { unlock(id: "150_tasks") }
+        if totalTasks >= 200 { unlock(id: "200_tasks") }
+        if totalTasks >= 300 { unlock(id: "300_tasks") }
+        if totalTasks >= 400 { unlock(id: "400_tasks") }
+        if totalTasks >= 500 { unlock(id: "500_tasks") }
+        if totalTasks >= 750 { unlock(id: "750_tasks") }
+        if totalTasks >= 1000 { unlock(id: "1000_tasks") }
         
+        // Streak Achievements (Weeks & Months)
         if streak >= 3 { unlock(id: "streak_3") }
         if streak >= 7 { unlock(id: "streak_7") }
+        if streak >= 14 { unlock(id: "streak_14") }
+        if streak >= 21 { unlock(id: "streak_21") }
         if streak >= 30 { unlock(id: "streak_30") }
+        if streak >= 40 { unlock(id: "streak_40") }
+        if streak >= 50 { unlock(id: "streak_50") }
+        if streak >= 60 { unlock(id: "streak_60") }
+        if streak >= 75 { unlock(id: "streak_75") }
+        if streak >= 90 { unlock(id: "streak_90") }
+        if streak >= 100 { unlock(id: "streak_100") }
+        
+        checkLevelAchievements()
+    }
+    
+    private func checkLevelAchievements() {
+        if currentLevel >= 2 { unlock(id: "level_2") }
+        if currentLevel >= 5 { unlock(id: "level_5") }
+        if currentLevel >= 8 { unlock(id: "level_8") }
+        if currentLevel >= 10 { unlock(id: "level_10") }
+        if currentLevel >= 15 { unlock(id: "level_15") }
+        if currentLevel >= 20 { unlock(id: "level_20") }
+        if currentLevel >= 25 { unlock(id: "level_25") }
+        if currentLevel >= 30 { unlock(id: "level_30") }
+        if currentLevel >= 35 { unlock(id: "level_35") }
+        if currentLevel >= 40 { unlock(id: "level_40") }
+        if currentLevel >= 45 { unlock(id: "level_45") }
+        if currentLevel >= 50 { unlock(id: "level_50") }
     }
     
     private func unlock(id: String) {
@@ -124,7 +167,7 @@ final class LevelManager {
     func loadData() {
         let defaults = UserDefaults.standard
         currentExp = defaults.integer(forKey: keyExp)
-        currentLevel = (currentExp / 100) + 1 // Recalculate level from EXP to be safe
+        currentLevel = Int(sqrt(Double(currentExp) / 50.0)) + 1 // Recalculate using quadratic
         
         if let str = defaults.string(forKey: keyAchievements) {
             unlockedAchievementIds = str.components(separatedBy: ",")
@@ -157,9 +200,8 @@ final class LevelManager {
             self.currentExp = exp
         }
         
-        if level > self.currentLevel {
-            self.currentLevel = level
-        }
+        // Recalculate Level locally based on max XP to ensure consistency with new Curve
+        self.currentLevel = Int(sqrt(Double(self.currentExp) / 50.0)) + 1
         
         // 2. Achievements Strategy: Union of sets
         let cloudIds = achievementsString.components(separatedBy: ",")
@@ -196,11 +238,48 @@ struct Achievement: Identifiable {
     let icon: String
     
     static let all: [Achievement] = [
-        Achievement(id: "first_task", title: "Getting Started", description: "Complete your first task", icon: "checkmark.circle.fill"),
-        Achievement(id: "10_tasks", title: "Productive", description: "Complete 10 tasks", icon: "list.bullet.circle.fill"),
-        Achievement(id: "50_tasks", title: "Machine", description: "Complete 50 tasks", icon: "trophy.fill"),
-        Achievement(id: "streak_3", title: "Consistency", description: "Reach a 3-day streak", icon: "flame.fill"),
-        Achievement(id: "streak_7", title: "On Fire", description: "Reach a 7-day streak", icon: "flame.circle.fill"),
-        Achievement(id: "streak_30", title: "Unstoppable", description: "Reach a 30-day streak", icon: "crown.fill"),
+        // MARK: TASKS - Early Game (1-100)
+        Achievement(id: "first_task", title: "First Step", description: "Complete your first task", icon: "shoeprints.fill"),
+        Achievement(id: "10_tasks", title: "Warming Up", description: "Complete 10 tasks", icon: "figure.walk"),
+        Achievement(id: "25_tasks", title: "Gaining Momentum", description: "Complete 25 tasks", icon: "figure.run"),
+        Achievement(id: "50_tasks", title: "Half Century", description: "Complete 50 tasks", icon: "flag.fill"),
+        Achievement(id: "75_tasks", title: "On a Roll", description: "Complete 75 tasks", icon: "bicycle"),
+        Achievement(id: "100_tasks", title: "Centurion", description: "Complete 100 tasks", icon: "rosette"),
+        
+        // MARK: TASKS - Mid Game (150-1000)
+        Achievement(id: "150_tasks", title: "Taskmaster", description: "Complete 150 tasks", icon: "list.clipboard.fill"),
+        Achievement(id: "200_tasks", title: "Double Century", description: "Complete 200 tasks", icon: "doc.on.doc.fill"),
+        Achievement(id: "300_tasks", title: "Spartan", description: "Complete 300 tasks", icon: "shield.checkered"),
+        Achievement(id: "400_tasks", title: "Four Score", description: "Complete 400 tasks", icon: "square.grid.4x3.fill"),
+        Achievement(id: "500_tasks", title: "The Machine", description: "Complete 500 tasks", icon: "gearshape.2.fill"),
+        Achievement(id: "750_tasks", title: "Juggernaut", description: "Complete 750 tasks", icon: "bolt.horizontal.fill"),
+        Achievement(id: "1000_tasks", title: "Legendary", description: "Complete 1,000 tasks", icon: "crown.fill"),
+        
+        // MARK: STREAKS (Days)
+        Achievement(id: "streak_3", title: "Hat Trick", description: "Reach a 3-day streak", icon: "flame.fill"),
+        Achievement(id: "streak_7", title: "One Week", description: "Reach a 7-day streak", icon: "7.circle.fill"),
+        Achievement(id: "streak_14", title: "Fortnight", description: "Reach a 14-day streak", icon: "calendar"),
+        Achievement(id: "streak_21", title: "Habit Former", description: "Reach a 21-day streak", icon: "brain.head.profile"),
+        Achievement(id: "streak_30", title: "Monthly Master", description: "Reach a 30-day streak", icon: "calendar.badge.checkmark"),
+        Achievement(id: "streak_40", title: "Disciplined", description: "Reach a 40-day streak", icon: "stopwatch.fill"),
+        Achievement(id: "streak_50", title: "Golden 50", description: "Reach a 50-day streak", icon: "star.circle.fill"),
+        Achievement(id: "streak_60", title: "Two Months", description: "Reach a 60-day streak", icon: "calendar.circle.fill"),
+        Achievement(id: "streak_75", title: "Diamond", description: "Reach a 75-day streak", icon: "suit.diamond.fill"),
+        Achievement(id: "streak_90", title: "Quarterly", description: "Reach a 90-day streak", icon: "chart.pie.fill"),
+        Achievement(id: "streak_100", title: "Century Streak", description: "Reach a 100-day streak", icon: "100.square.fill"),
+
+        // MARK: LEVELS
+        Achievement(id: "level_2", title: "Novice", description: "Reach Level 2", icon: "leaf"),
+        Achievement(id: "level_5", title: "Apprentice", description: "Reach Level 5", icon: "book.fill"),
+        Achievement(id: "level_8", title: "Scholar", description: "Reach Level 8", icon: "eyeglasses"),
+        Achievement(id: "level_10", title: "Journeyman", description: "Reach Level 10", icon: "hammer.fill"),
+        Achievement(id: "level_15", title: "Adept", description: "Reach Level 15", icon: "pencil.and.ruler.fill"),
+        Achievement(id: "level_20", title: "Expert", description: "Reach Level 20", icon: "star.square.fill"),
+        Achievement(id: "level_25", title: "Professional", description: "Reach Level 25", icon: "briefcase.fill"),
+        Achievement(id: "level_30", title: "Master", description: "Reach Level 30", icon: "graduationcap.fill"),
+        Achievement(id: "level_35", title: "Elite", description: "Reach Level 35", icon: "medal.fill"),
+        Achievement(id: "level_40", title: "Grandmaster", description: "Reach Level 40", icon: "trophy.circle.fill"),
+        Achievement(id: "level_45", title: "Hero", description: "Reach Level 45", icon: "shield.star.fill"),
+        Achievement(id: "level_50", title: "Immortal", description: "Reach Level 50", icon: "infinity.circle.fill"),
     ]
 }

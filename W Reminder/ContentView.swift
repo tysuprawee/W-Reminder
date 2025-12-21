@@ -339,7 +339,8 @@ struct MilestoneView: View {
             let newItem = ChecklistItem(
                 text: item.text,
                 isDone: item.isDone,
-                position: idx
+                position: idx,
+                dueDate: item.dueDate // Preserve due date
             )
             newItem.checklist = checklist
             return newItem
@@ -406,14 +407,21 @@ struct MilestoneView: View {
     private func checklistList(active: [Checklist]) -> some View {
         List {
             ForEach(active) { checklist in
-                ChecklistRow(
-                    checklist: checklist,
-                    theme: theme,
-                    onEdit: {
-                        print("DEBUG: Editing checklist \(checklist.title)")
-                        editingChecklist = checklist
+                ZStack {
+                    NavigationLink(value: checklist) {
+                        EmptyView()
                     }
-                )
+                    .opacity(0)
+                    
+                    ChecklistRow(
+                        checklist: checklist,
+                        theme: theme,
+                        onEdit: {
+                            print("DEBUG: Editing checklist \(checklist.title)")
+                            editingChecklist = checklist
+                        }
+                    )
+                }
                 .listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
                 .transition(.opacity.combined(with: .move(edge: .trailing)))
@@ -448,9 +456,11 @@ struct MilestoneView: View {
             refreshID = UUID()
             
             // Small delay for visual feedback
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            try? await Task.sleep(nanoseconds: 500_000_000)
         }
-        .id(refreshID) // Force view refresh when refreshID changes
+        .navigationDestination(for: Checklist.self) { checklist in
+            MilestoneDetailView(checklist: checklist, theme: theme)
+        }
     }
 
     private func moveChecklists(from source: IndexSet, to destination: Int, active: [Checklist]) {
@@ -520,7 +530,7 @@ struct AddChecklistView: View {
     @State private var dueDate: Date? = nil
     @State private var remind: Bool = true
     @State private var isSettingDueDate: Bool = false
-    @State private var items: [ChecklistItem] = [ChecklistItem(text: "New item", position: 0)]
+    @State private var items: [ChecklistItem] = []
     @State private var isDone: Bool = false
     @State private var selectedTags: [Tag] = []
     @State private var recurrenceRule: String? = nil
@@ -548,7 +558,8 @@ struct AddChecklistView: View {
                             tagSelectionSection
                             deadlineSection
                             recurrenceSection
-                            itemsSection
+                            // itemsSection 
+                            // ^ Moved to Detail View as per user request
                         }
                         .padding(.vertical)
                     }
@@ -590,9 +601,7 @@ struct AddChecklistView: View {
                 isDone = checklist.isDone
                 items = checklist.items.sorted { $0.position < $1.position }
                 recurrenceRule = checklist.recurrenceRule
-                if items.isEmpty {
-                    items = [ChecklistItem(text: "", position: 0)]
-                }
+                // Removed placeholder logic per user request
                 selectedTags = checklist.tags
                 print("DEBUG: Loaded checklist tags: \(checklist.tags.map { $0.name }) IDs: \(checklist.tags.map { $0.id })")
                 print("DEBUG: Query tags count: \(tags.count)")
@@ -604,7 +613,7 @@ struct AddChecklistView: View {
                 remind = true
                 isSettingDueDate = false
                 isDone = false
-                items = [ChecklistItem(text: "New item", position: 0)]
+                items = []
                 selectedTags = []
                 recurrenceRule = nil
             }
@@ -797,23 +806,9 @@ struct AddChecklistView: View {
                 .background(theme.primary.opacity(0.05))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
                 .transition(.scale.combined(with: .opacity))
+                .clipShape(RoundedRectangle(cornerRadius: 16))
+                .transition(.scale.combined(with: .opacity))
             }
-            
-            HStack {
-                Label("Mark as Done", systemImage: "checkmark.circle.fill")
-                    .font(.headline)
-                Spacer()
-                CustomToggle(isOn: $isDone)
-                    .onChange(of: isDone) { old, new in
-                        if new && isHapticsEnabled {
-                            let generator = UIImpactFeedbackGenerator(style: .medium)
-                            generator.impactOccurred()
-                        }
-                    }
-            }
-            .padding()
-            .background(theme.primary.opacity(0.05))
-            .clipShape(RoundedRectangle(cornerRadius: 16))
         }
         .padding(.horizontal)
     }
@@ -1079,9 +1074,6 @@ struct ChecklistRow: View {
                     }
                     .foregroundStyle(deadlineColor(for: dueDate))
                 }
-                
-                Button("Edit") { onEdit() }
-                    .font(.caption)
             }
         }
         .padding()
