@@ -68,7 +68,7 @@ struct TagManagementView: View {
                     modelContext.insert(newTag)
                     try? modelContext.save()
                     Task {
-                        await SyncManager.shared.sync(container: modelContext.container)
+                        await SyncManager.shared.sync(container: modelContext.container, silent: true)
                     }
                     showingAddTag = false
                 }
@@ -81,7 +81,7 @@ struct TagManagementView: View {
                     tag.colorHex = color.toHex()
                     try? modelContext.save()
                     Task {
-                        await SyncManager.shared.sync(container: modelContext.container)
+                        await SyncManager.shared.sync(container: modelContext.container, silent: true)
                     }
                     editingTag = nil
                 }
@@ -100,7 +100,7 @@ struct TagManagementView: View {
 
         try? modelContext.save()
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 }

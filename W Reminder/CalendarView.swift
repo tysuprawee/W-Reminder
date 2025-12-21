@@ -394,7 +394,7 @@ struct CalendarView: View {
 
         editingMilestone = nil
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 
@@ -434,7 +434,7 @@ struct CalendarView: View {
 
         editingSimple = nil
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 

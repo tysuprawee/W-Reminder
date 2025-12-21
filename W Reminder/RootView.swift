@@ -7,6 +7,7 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 import AVFoundation
+import AudioToolbox
 
 // Simple Audio Player for Previews
 class SoundPlayer: NSObject {
@@ -20,6 +21,9 @@ class SoundPlayer: NSObject {
         }
         
         do {
+            try AVAudioSession.sharedInstance().setCategory(.ambient, mode: .default)
+            try AVAudioSession.sharedInstance().setActive(true)
+            
             audioPlayer = try AVAudioPlayer(contentsOf: url)
             audioPlayer?.play()
         } catch {
@@ -132,6 +136,9 @@ struct RootView: View {
                 notificationStatus = settings.authorizationStatus
             }
         }
+        
+        // Check Mute Status
+        MuteDetector.shared.check()
     }
 }
 
@@ -233,6 +240,9 @@ struct SettingsView: View {
     @State private var authManager = AuthManager.shared
     @State private var showLoginSheet = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
+        
+    // Observe MuteDetector updates
+    var muteDetector = MuteDetector.shared
 
     var body: some View {
         NavigationStack {
@@ -286,21 +296,35 @@ struct SettingsView: View {
                     }
                     .tint(theme.accent)
                     
-                    // Silent Mode Reminder
-                    HStack(alignment: .top, spacing: 12) {
-                        Image(systemName: "speaker.wave.2.fill")
-                            .foregroundStyle(theme.accent)
+                    // Silent Mode Status
+                    HStack(alignment: .center, spacing: 12) {
+                        Image(systemName: muteDetector.isMuted ? "bell.slash.fill" : "bell.fill")
+                            .foregroundStyle(muteDetector.isMuted ? .orange : .green)
                             .font(.title3)
                         
                         VStack(alignment: .leading, spacing: 4) {
-                            Text("Sound Mode")
+                            Text(muteDetector.isMuted ? "Silent Mode On" : "Sound On")
                                 .font(.subheadline.bold())
-                            Text("Check your device's silent switch for sound or vibration only")
+                                .foregroundStyle(muteDetector.isMuted ? .orange : .green)
+                            
+                            Text(muteDetector.isMuted ? "App sounds will be silent." : "App sounds will play.")
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                         }
+                        
+                        Spacer()
+                        
+                        Button("Check") {
+                            muteDetector.check()
+                        }
+                        .font(.caption)
+                        .buttonStyle(.bordered)
                     }
                     .padding(.vertical, 4)
+                    .onReceive(Timer.publish(every: 1, on: .main, in: .common).autoconnect()) { _ in
+                        // Periodic check while settings open
+                        muteDetector.check()
+                    }
                     
                     if notificationStatus != .authorized {
                         Button {
@@ -434,6 +458,11 @@ struct SettingsView: View {
         } else {
             // Default System Sound
             AudioServicesPlaySystemSound(1007)
+        }
+        
+        // Handle Vibration Preference
+        if isHapticsEnabled {
+            AudioServicesPlaySystemSound(kSystemSoundID_Vibrate)
         }
     }
     

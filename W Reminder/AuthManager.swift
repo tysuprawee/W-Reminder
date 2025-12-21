@@ -124,7 +124,7 @@ final class AuthManager {
             
             self.profile = profile
             
-            // Sync Streaks (Cloud -> Local)
+            // Sync Streaks & Gamification (Cloud -> Local)
             await MainActor.run {
                 if let cloudStreak = profile.streakCount {
                      // Only overwrite local if cloud data exists
@@ -132,6 +132,15 @@ final class AuthManager {
                         count: cloudStreak,
                         lastDate: profile.streakLastActive
                      )
+                }
+                
+                // Gamification Config (Robust Import)
+                if let exp = profile.experiencePoints, let lvl = profile.level {
+                    LevelManager.shared.importFromCloud(
+                        exp: exp, 
+                        level: lvl, 
+                        achievementsString: profile.achievements ?? ""
+                    )
                 }
                 
                 // Apply preferences
@@ -164,6 +173,26 @@ final class AuthManager {
                 .execute()
         } catch {
              print("Error updating streak: \(error)")
+        }
+    }
+    
+    func updateGamification(exp: Int, level: Int, achievements: String) async {
+        guard let userId = user?.id else { return }
+        
+        let update = ProfileGamificationUpdate(
+            experiencePoints: exp,
+            level: level,
+            achievements: achievements
+        )
+        
+        do {
+            try await client
+                .from("profiles")
+                .update(update)
+                .eq("id", value: userId)
+                .execute()
+        } catch {
+             print("Error updating gamification: \(error)")
         }
     }
     
@@ -210,6 +239,9 @@ struct Profile: Codable {
     let notificationSound: String?
     let streakCount: Int?
     let streakLastActive: Date?
+    let experiencePoints: Int?
+    let level: Int?
+    let achievements: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -220,6 +252,9 @@ struct Profile: Codable {
         case notificationSound = "notification_sound"
         case streakCount = "streak_count"
         case streakLastActive = "streak_last_active"
+        case experiencePoints = "experience_points"
+        case level
+        case achievements
     }
 }
 
@@ -240,5 +275,17 @@ struct ProfileStreakUpdate: Encodable {
     enum CodingKeys: String, CodingKey {
         case streakCount = "streak_count"
         case streakLastActive = "streak_last_active"
+    }
+}
+
+struct ProfileGamificationUpdate: Encodable {
+    let experiencePoints: Int
+    let level: Int
+    let achievements: String
+    
+    enum CodingKeys: String, CodingKey {
+        case experiencePoints = "experience_points"
+        case level
+        case achievements
     }
 }

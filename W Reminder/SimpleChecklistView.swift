@@ -333,7 +333,7 @@ struct SimpleChecklistView: View {
         
         // Auto-sync on Save
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 
@@ -348,7 +348,7 @@ struct SimpleChecklistView: View {
             // Auto-sync on Delete
             try? modelContext.save()
             Task {
-                 await SyncManager.shared.sync(container: modelContext.container)
+                 await SyncManager.shared.sync(container: modelContext.container, silent: true)
             }
         }
     }
@@ -395,7 +395,7 @@ struct SimpleChecklistView: View {
                         
                         // Auto-sync on Toggle Done
                         Task {
-                            await SyncManager.shared.sync(container: modelContext.container)
+                            await SyncManager.shared.sync(container: modelContext.container, silent: true)
                         }
                     },
                     onEdit: {
@@ -436,7 +436,7 @@ struct SimpleChecklistView: View {
             refreshID = UUID()
             
             // Sync with Cloud
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
             
             // Small delay for visual feedback
             try? await Task.sleep(nanoseconds: 300_000_000)
@@ -876,18 +876,41 @@ struct SimpleChecklistRow: View {
     let checklist: SimpleChecklist
     let theme: Theme
     var onToggleDone: () -> Void
-    var onEdit: () -> Void
+    var onEdit: () -> Void = {}
+    
+    @State private var isMarkingDone = false
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: 12) {
-            // Checkbox
+        HStack(spacing: 12) {
+            // Checkbox Button with Animation
             Button {
-                withAnimation(.easeInOut) {
-                    onToggleDone()
+                if !checklist.isDone {
+                     // Check with delay
+                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                         isMarkingDone = true
+                     }
+                     // Haptic
+                     let generator = UIImpactFeedbackGenerator(style: .medium)
+                     generator.impactOccurred()
+                     
+                     // Delay
+                     Task {
+                         try? await Task.sleep(nanoseconds: 600_000_000) // 0.6s
+                         await MainActor.run {
+                             onToggleDone()
+                             isMarkingDone = false
+                         }
+                     }
+                } else {
+                     // Uncheck - immediate
+                     onToggleDone()
                 }
             } label: {
-                Image(systemName: checklist.isDone ? "checkmark.circle.fill" : "circle")
-                    .foregroundStyle(checklist.isDone ? theme.accent : .secondary)
+                Image(systemName: (checklist.isDone || isMarkingDone) ? "checkmark.circle.fill" : "circle")
+                    .font(.title2)
+                    .foregroundStyle((checklist.isDone || isMarkingDone) ? theme.accent : .gray)
+                    .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: isMarkingDone)
             }
             .buttonStyle(.plain)
 
@@ -895,8 +918,9 @@ struct SimpleChecklistRow: View {
                 HStack(spacing: 8) {
                     Text(checklist.title)
                         .font(.headline)
-                        .foregroundStyle(checklist.isDone ? .secondary : theme.primary)
-                        .strikethrough(checklist.isDone, color: .secondary)
+                        .foregroundStyle((checklist.isDone || isMarkingDone) ? .secondary : theme.primary)
+                        .strikethrough((checklist.isDone || isMarkingDone), color: .secondary)
+                        .animation(.default, value: isMarkingDone)
                     
                     // Multi-Tag Display
                     HStack(spacing: 4) {

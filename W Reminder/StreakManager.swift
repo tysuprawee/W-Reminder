@@ -32,6 +32,10 @@ final class StreakManager {
     
     /// Call this whenever a task is completed
     func incrementStreak() {
+        // Award EXP for every completion
+        LevelManager.shared.addExp(10)
+        LevelManager.shared.checkAchievements(totalTasks: LevelManager.shared.currentExp / 10, streak: currentStreak)
+        
         let now = Date()
         let calendar = Calendar.current
         let userDefaults = defaults ?? .standard
@@ -114,30 +118,31 @@ final class StreakManager {
     }
     // MARK: - Cloud Sync Helpers
     
-    /// Updates local streak from Cloud data (Force Override)
+    /// Updates local streak from Cloud data (Robust Merge)
     func updateFromCloud(count: Int, lastDate: Date?) {
         let userDefaults = defaults ?? .standard
         
-        self.currentStreak = count
-        // Calculate active state based on cloud date
-        if let lastDate {
-            let calendar = Calendar.current
-            if calendar.isDateInToday(lastDate) {
-                self.isStreakActiveToday = true
-            } else if calendar.isDateInYesterday(lastDate) {
-                self.isStreakActiveToday = false
+        // Strategy: Trust the source with the higher streak count (Representation of 'more progress')
+        if count > self.currentStreak {
+            self.currentStreak = count
+            
+            if let lastDate {
+                let calendar = Calendar.current
+                if calendar.isDateInToday(lastDate) {
+                    self.isStreakActiveToday = true
+                } else {
+                    self.isStreakActiveToday = false
+                }
+                userDefaults.set(lastDate, forKey: keyLastDate)
             } else {
                 self.isStreakActiveToday = false
-                // Note: If cloud thinks streak is X but date is old, maybe we shouldn't trust count?
-                // But let's trust cloud for now.
             }
-            userDefaults.set(lastDate, forKey: keyLastDate)
-        } else {
-            self.isStreakActiveToday = false
-            userDefaults.removeObject(forKey: keyLastDate)
+            
+            userDefaults.set(count, forKey: keyStreak)
         }
+        // If local streak is higher, we keep local.
+        // Ideally we should push local back to cloud, but AuthManager handles that on next update.
         
-        userDefaults.set(count, forKey: keyStreak)
         WidgetCenter.shared.reloadAllTimelines()
     }
     

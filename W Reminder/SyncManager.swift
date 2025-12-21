@@ -91,21 +91,22 @@ final class SyncManager {
     // Track current sync task to allow waiting
     private var syncTask: Task<Void, Never>?
 
-    func sync(container: ModelContainer) async {
+    func sync(container: ModelContainer, silent: Bool = false) async {
         // 1. Check if a sync is already running. If so, wait for it.
         let existingTask: Task<Void, Never>? = await MainActor.run {
-            if isSyncing { return syncTask }
-            return nil
+            // If this request is NOT silent, ensure we show the loading UI immediately
+            // even if we are attaching to an existing background task.
+            if !silent {
+                self.isSyncing = true
+            }
+            
+            // Return existing task if any (checking syncTask instead of isSyncing)
+            return syncTask
         }
         
         if let existingTask {
             print("Sync: Already in progress, waiting...")
             await existingTask.value
-            // Optional: If we want to force a *new* sync after this one, we could continue.
-            // But usually "syncing now" is sufficient.
-            // However, for Sign Out, we want to be SURE everything is flushed.
-            // Let's proceed to allow a fresh sync only if needed, OR just trust the current one.
-            // For now, let's just return to avoid double syncing, assuming the current one covers recent changes.
             return
         }
 
@@ -116,7 +117,9 @@ final class SyncManager {
         
         await MainActor.run {
             self.syncTask = task
-            self.isSyncing = true
+            if !silent {
+                self.isSyncing = true
+            }
         }
         
         await task.value

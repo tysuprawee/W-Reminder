@@ -86,30 +86,9 @@ struct MilestoneView: View {
                             showStreakInfo = true
                         }
                         .sheet(isPresented: $showStreakInfo) {
-                            VStack(spacing: 16) {
-                                Image(systemName: "flame.fill")
-                                    .font(.system(size: 50))
-                                    .foregroundStyle(.orange)
-                                    .padding(.top)
-                                Text("Streak Power!")
-                                    .font(.title2.bold())
-                                Text("Complete at least one task every day to keep your streak alive. Don't let the fire go out!")
-                                    .font(.body)
-                                    .multilineTextAlignment(.center)
-                                    .foregroundStyle(.secondary)
-                                    .padding(.horizontal)
-                                    .fixedSize(horizontal: false, vertical: true) // Ensure text wraps
-                                
-                                Button("Got it!") {
-                                    showStreakInfo = false
-                                }
-                                .buttonStyle(.borderedProminent)
-                                .tint(.orange)
-                                .padding(.top)
-                            }
-                            .padding()
-                            .presentationDetents([.fraction(0.35)]) // Take up bottom 35%
-                            .presentationDragIndicator(.visible)
+                            ProfilePopupView(theme: theme)
+                                .presentationDetents([.medium, .large])
+                                .presentationDragIndicator(.visible)
                         }
                         .padding(.trailing, 8)
                         Button {
@@ -306,6 +285,7 @@ struct MilestoneView: View {
         }
         .tint(theme.accent)
         .background(theme.background.ignoresSafeArea())
+        .animation(.easeInOut(duration: 0.5), value: theme.id) // Smooth theme transition
     }
 
     private func saveChecklist(
@@ -363,7 +343,7 @@ struct MilestoneView: View {
         
         // Auto-sync
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 
@@ -378,7 +358,7 @@ struct MilestoneView: View {
             // Auto-sync on Delete
             try? modelContext.save()
             Task {
-                await SyncManager.shared.sync(container: modelContext.container)
+                await SyncManager.shared.sync(container: modelContext.container, silent: true)
             }
         }
     }

@@ -11,6 +11,8 @@ import UserNotifications
 
 @main
 struct W_ReminderApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    
     // Use the shared persistence controller (App Group aware)
     var sharedModelContainer: ModelContainer = SharedPersistence.shared.container
 
@@ -28,5 +30,11 @@ struct W_ReminderApp: App {
         }
         .modelContainer(sharedModelContainer)
 
+    }
+}
+
+class AppDelegate: NSObject, UIApplicationDelegate {
+    func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
+        return .portrait
     }
 }

@@ -324,7 +324,7 @@ struct RecordsView: View {
 
         
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 
@@ -364,7 +364,7 @@ struct RecordsView: View {
 
         
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 
@@ -379,7 +379,7 @@ struct RecordsView: View {
         }
         try? modelContext.save()
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 
@@ -394,7 +394,7 @@ struct RecordsView: View {
         }
         try? modelContext.save()
         Task {
-            await SyncManager.shared.sync(container: modelContext.container)
+            await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
 
