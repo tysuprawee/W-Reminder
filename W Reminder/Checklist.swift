@@ -122,4 +122,20 @@ struct RecurrenceHelper {
         formatter.numberStyle = .ordinal
         return formatter.string(from: NSNumber(value: number)) ?? "\(number)th"
     }
+
+    static func calculateNextDueDate(from current: Date, rule: String) -> Date? {
+        let calendar = Calendar.current
+        switch rule.lowercased() {
+        case "daily":
+            return calendar.date(byAdding: .day, value: 1, to: current)
+        case "weekly":
+            return calendar.date(byAdding: .weekOfYear, value: 1, to: current)
+        case "monthly":
+            return calendar.date(byAdding: .month, value: 1, to: current)
+        case "yearly":
+            return calendar.date(byAdding: .year, value: 1, to: current)
+        default:
+            return nil
+        }
+    }
 }

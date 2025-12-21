@@ -255,6 +255,24 @@ struct CalendarView: View {
                                     NotificationManager.shared.cancelNotification(for: checklist)
                                     if checklist.isDone {
                                         StreakManager.shared.incrementStreak()
+                                        
+                                        // Handle Recurrence
+                                        if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
+                                            if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
+                                                let newItem = SimpleChecklist(
+                                                    title: checklist.title,
+                                                    notes: checklist.notes,
+                                                    dueDate: nextDate,
+                                                    remind: checklist.remind,
+                                                    isDone: false,
+                                                    tags: checklist.tags,
+                                                    isStarred: checklist.isStarred,
+                                                    userOrder: checklist.userOrder,
+                                                    recurrenceRule: rule
+                                                )
+                                                modelContext.insert(newItem)
+                                            }
+                                        }
                                     }
                                 },
                                 onEdit: {

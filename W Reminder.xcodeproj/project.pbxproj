@@ -62,7 +62,7 @@
 		8E79EADD2EF7812A0071BAF7 /* WReminderWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WReminderWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
 		8E79EADE2EF7812A0071BAF7 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
 		8E79EAE02EF7812A0071BAF7 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
-		8E79EAF52EF782500071BAF7 /* WReminderWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WReminderWidget.entitlements; sourceTree = "<group>"; };
+		8E79EAF52EF782500071BAF7 /* WReminderWidgetExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WReminderWidgetExtension.entitlements; sourceTree = "<group>"; };
 		8E79EB5F2EF79D0C0071BAF7 /* W-Reminder-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "W-Reminder-Info.plist"; sourceTree = "<group>"; };
 		8EEC8A242ECF9892009E9C8A /* W Reminder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "W Reminder.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
@@ -88,10 +88,10 @@
 			);
 			target = 8EEC8A232ECF9892009E9C8A /* W Reminder */;
 		};
-		8E79EB632EF7A3670071BAF7 /* Exceptions for "WReminderWidget" folder in "WReminderWidget" target */ = {
+		8E79EC1B2EF868AD0071BAF7 /* Exceptions for "WReminderWidget" folder in "WReminderWidget" target */ = {
 			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
 			membershipExceptions = (
-				Info.plist,
+				WReminderWidget_Manual.plist,
 			);
 			target = 8E79EADC2EF7812A0071BAF7 /* WReminderWidget */;
 		};
@@ -111,7 +111,7 @@
 		8E79EAE22EF7812A0071BAF7 /* WReminderWidget */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
 			exceptions = (
-				8E79EB632EF7A3670071BAF7 /* Exceptions for "WReminderWidget" folder in "WReminderWidget" target */,
+				8E79EC1B2EF868AD0071BAF7 /* Exceptions for "WReminderWidget" folder in "WReminderWidget" target */,
 			);
 			path = WReminderWidget;
 			sourceTree = "<group>";
@@ -180,7 +180,7 @@
 			isa = PBXGroup;
 			children = (
 				8E79EB5F2EF79D0C0071BAF7 /* W-Reminder-Info.plist */,
-				8E79EAF52EF782500071BAF7 /* WReminderWidget.entitlements */,
+				8E79EAF52EF782500071BAF7 /* WReminderWidgetExtension.entitlements */,
 				8EEC8A262ECF9892009E9C8A /* W Reminder */,
 				8E64B6122EE94E6A00916B45 /* W ReminderTests */,
 				8E64B6292EEA82F900916B45 /* W ReminderUITests */,
@@ -442,7 +442,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4H48F9L3R2;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-ReminderTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -460,7 +460,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4H48F9L3R2;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-ReminderTests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -477,7 +477,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4H48F9L3R2;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-ReminderUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -494,7 +494,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4H48F9L3R2;
 				GENERATE_INFOPLIST_FILE = YES;
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-ReminderUITests";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = NO;
@@ -509,12 +509,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = WReminderWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = WReminderWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4H48F9L3R2;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = WReminderWidget/Info.plist;
+				INFOPLIST_FILE = WReminderWidget/WReminderWidget_Manual.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -522,7 +522,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder.WReminderWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -537,12 +537,12 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
-				CODE_SIGN_ENTITLEMENTS = WReminderWidget.entitlements;
+				CODE_SIGN_ENTITLEMENTS = WReminderWidgetExtension.entitlements;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_TEAM = 4H48F9L3R2;
 				GENERATE_INFOPLIST_FILE = NO;
-				INFOPLIST_FILE = WReminderWidget/Info.plist;
+				INFOPLIST_FILE = WReminderWidget/WReminderWidget_Manual.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "";
 				INFOPLIST_KEY_NSHumanReadableCopyright = "";
 				LD_RUNPATH_SEARCH_PATHS = (
@@ -550,7 +550,7 @@
 					"@executable_path/Frameworks",
 					"@executable_path/../../Frameworks",
 				);
-				MARKETING_VERSION = 1.0;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder.WReminderWidget";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SKIP_INSTALL = YES;
@@ -703,7 +703,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.02;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -734,7 +734,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.02;
+				MARKETING_VERSION = 1.03;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;

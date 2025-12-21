@@ -198,6 +198,24 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                     descriptor.fetchLimit = 1
                     if let item = try context.fetch(descriptor).first {
                         item.isDone = true
+                        
+                        // Handle Recurrence
+                        if let rule = item.recurrenceRule, let currentDue = item.dueDate {
+                            if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
+                                let newItem = SimpleChecklist(
+                                    title: item.title,
+                                    notes: item.notes,
+                                    dueDate: nextDate,
+                                    remind: item.remind,
+                                    isDone: false,
+                                    tags: item.tags,
+                                    isStarred: item.isStarred,
+                                    userOrder: item.userOrder,
+                                    recurrenceRule: rule
+                                )
+                                context.insert(newItem)
+                            }
+                        }
                         try context.save()
                         print("Notification: Simple Checklist \(item.title) marked done.")
                         // Streak Update
