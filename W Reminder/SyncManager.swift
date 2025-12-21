@@ -9,17 +9,20 @@ import Foundation
 import SwiftData
 import Supabase
 
+@MainActor
 @Observable
 final class SyncManager {
     static let shared = SyncManager()
     
-    private let client = AuthManager.shared.client
+    nonisolated private let client: SupabaseClient
     
     var isSyncing = false
     var lastSyncTime: Date?
     var errorMessage: String?
     
-    private init() {}
+    private init() {
+        self.client = AuthManager.shared.client
+    }
     
     // MARK: - Merge / Conflict Helpers
     
@@ -124,7 +127,7 @@ final class SyncManager {
         }
     }
     
-    private func performSync(container: ModelContainer) async {
+    nonisolated private func performSync(container: ModelContainer) async {
         // Access AuthManager on MainActor to be safe
         let (shouldProceed, uid): (Bool, UUID?) = await MainActor.run {
              guard let user = AuthManager.shared.user else { return (false, nil) }
@@ -141,6 +144,9 @@ final class SyncManager {
         context.autosaveEnabled = false // We handle saves explicitly
         
         do {
+            // 0. Process Deletions (Critical Step)
+            try await processDeletions(context: context)
+            
             // 1. Sync Tags (Push & Pull)
             let tagsMap = try await syncTags(context: context, userId: userId)
             
@@ -162,12 +168,56 @@ final class SyncManager {
         }
     }
     
+    // MARK: - Deletion Logic
+    
+    @MainActor
+    func registerDeletion(of object: any PersistentModel, context: ModelContext) {
+        let table: String
+        let id: UUID
+        
+        if let checklist = object as? SimpleChecklist {
+            table = "simple_checklists"
+            id = checklist.id
+        } else if let milestone = object as? Checklist {
+            table = "milestones"
+            id = milestone.id
+        } else if let tag = object as? Tag {
+            table = "tags"
+            id = tag.id
+        } else {
+            return
+        }
+        
+        let record = DeletedRecord(targetID: id, table: table)
+        context.insert(record)
+        // Note: The caller is responsible for actually deleting the object and saving the context
+    }
+
+    nonisolated private func processDeletions(context: ModelContext) async throws {
+        let deletedRecords = try context.fetch(FetchDescriptor<DeletedRecord>())
+        guard !deletedRecords.isEmpty else { return }
+        
+        print("Sync: Processing \(deletedRecords.count) deletions...")
+        
+        for record in deletedRecords {
+             // If we fail here, the record remains and we retry next time.
+             // We can optimize by batching, but one-by-one is safer for now.
+             
+             try await client.from(record.table).delete().eq("id", value: record.targetID).execute()
+             
+             // After successful cloud delete, remove the tombstone
+             context.delete(record)
+        }
+        
+        try context.save()
+    }
+    
     // MARK: - Tags Sync
     
     /// Returns a map of CloudID -> LocalTag for relationship linking
 
     // Run on background (non-isolated)
-    private func syncTags(context: ModelContext, userId: UUID) async throws -> [UUID: Tag] {
+    nonisolated private func syncTags(context: ModelContext, userId: UUID) async throws -> [UUID: Tag] {
         // A. PUSH Local Tags (dumb upsert for now)
         let localTags = try context.fetch(FetchDescriptor<Tag>())
         for tag in localTags {
@@ -238,7 +288,7 @@ final class SyncManager {
     // MARK: - Checklists Sync
     
     // Run on background
-    private func syncChecklists(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
+    nonisolated private func syncChecklists(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
         // A. PUSH Local Checklists
         let localLists = try context.fetch(FetchDescriptor<SimpleChecklist>())
         for list in localLists {
@@ -353,7 +403,7 @@ final class SyncManager {
 // MARK: - Milestones Sync
 
     // Run on background
-    private func syncMilestones(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
+    nonisolated private func syncMilestones(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
         // A. PUSH Local Milestones
         let localLists = try context.fetch(FetchDescriptor<Checklist>()) // Checklist = Milestone
         for list in localLists {

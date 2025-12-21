@@ -47,7 +47,7 @@ struct RecordsView: View {
             .navigationTitle("Records")
             .toolbar { toolbarContent }
             .sheet(item: $editingMilestone) { checklist in
-                AddChecklistView(checklist: checklist, theme: theme) { title, notes, dueDate, remind, items, isDone, tags in
+                AddChecklistView(checklist: checklist, theme: theme) { title, notes, dueDate, remind, items, isDone, tags, recurrenceRule in
                     saveMilestone(
                         original: checklist,
                         title: title,
@@ -56,19 +56,21 @@ struct RecordsView: View {
                         remind: remind,
                         items: items,
                         isDone: isDone,
-                        tags: tags
+                        tags: tags,
+                        recurrenceRule: recurrenceRule
                     )
                 }
             }
             .sheet(item: $editingSimple) { checklist in
-                AddSimpleChecklistView(checklist: checklist, theme: theme) { title, notes, dueDate, remind, tags in
+                AddSimpleChecklistView(checklist: checklist, theme: theme) { title, notes, dueDate, remind, tags, recurrenceRule in
                     saveSimple(
                         original: checklist,
                         title: title,
                         notes: notes,
                         dueDate: dueDate,
                         remind: remind,
-                        tags: tags
+                        tags: tags,
+                        recurrenceRule: recurrenceRule
                     )
                 }
             }
@@ -129,7 +131,7 @@ struct RecordsView: View {
     }
 
     private var milestoneSheetContent: some View {
-        AddChecklistView(checklist: editingMilestone, theme: theme) { title, notes, dueDate, remind, items, isDone, tags in
+        AddChecklistView(checklist: editingMilestone, theme: theme) { title, notes, dueDate, remind, items, isDone, tags, recurrenceRule in
             saveMilestone(
                 original: editingMilestone,
                 title: title,
@@ -138,21 +140,23 @@ struct RecordsView: View {
                 remind: remind,
                 items: items,
                 isDone: isDone,
-                tags: tags
+                tags: tags,
+                recurrenceRule: recurrenceRule
             )
         }
         .id(editingMilestone?.id)
     }
 
     private var simpleSheetContent: some View {
-        AddSimpleChecklistView(checklist: editingSimple, theme: theme) { title, notes, dueDate, remind, tags in
+        AddSimpleChecklistView(checklist: editingSimple, theme: theme) { title, notes, dueDate, remind, tags, recurrenceRule in
             saveSimple(
                 original: editingSimple,
                 title: title,
                 notes: notes,
                 dueDate: dueDate,
                 remind: remind,
-                tags: tags
+                tags: tags,
+                recurrenceRule: recurrenceRule
             )
         }
         .id(editingSimple?.id)
@@ -281,7 +285,8 @@ struct RecordsView: View {
         remind: Bool,
         items: [ChecklistItem],
         isDone: Bool,
-        tags: [Tag]
+        tags: [Tag],
+        recurrenceRule: String?
     ) {
         let checklist: Checklist
         if let original {
@@ -292,6 +297,7 @@ struct RecordsView: View {
             checklist.remind = remind
             checklist.isDone = isDone
             checklist.tags = tags
+            checklist.recurrenceRule = recurrenceRule
         } else {
             checklist = Checklist(
                 title: title,
@@ -299,7 +305,8 @@ struct RecordsView: View {
                 dueDate: dueDate,
                 remind: remind,
                 items: [],
-                tags: tags
+                tags: tags,
+                recurrenceRule: recurrenceRule
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
@@ -327,7 +334,8 @@ struct RecordsView: View {
         notes: String?,
         dueDate: Date?,
         remind: Bool,
-        tags: [Tag]
+        tags: [Tag],
+        recurrenceRule: String?
     ) {
         let checklist: SimpleChecklist
         if let original {
@@ -337,6 +345,7 @@ struct RecordsView: View {
             checklist.dueDate = dueDate
             checklist.remind = remind
             checklist.tags = tags
+            checklist.recurrenceRule = recurrenceRule
         } else {
             checklist = SimpleChecklist(
                 title: title,
@@ -344,7 +353,8 @@ struct RecordsView: View {
                 dueDate: dueDate,
                 remind: remind,
                 isDone: true,
-                tags: tags
+                tags: tags,
+                recurrenceRule: recurrenceRule
             )
             modelContext.insert(checklist)
         }
@@ -363,9 +373,11 @@ struct RecordsView: View {
             for index in offsets {
                 let checklist = completedMilestones[index]
                 NotificationManager.shared.cancelNotification(for: checklist)
+                SyncManager.shared.registerDeletion(of: checklist, context: modelContext)
                 modelContext.delete(checklist)
             }
         }
+        try? modelContext.save()
         Task {
             await SyncManager.shared.sync(container: modelContext.container)
         }
@@ -376,9 +388,11 @@ struct RecordsView: View {
             for index in offsets {
                 let checklist = completedSimples[index]
                 NotificationManager.shared.cancelNotification(for: checklist)
+                SyncManager.shared.registerDeletion(of: checklist, context: modelContext)
                 modelContext.delete(checklist)
             }
         }
+        try? modelContext.save()
         Task {
             await SyncManager.shared.sync(container: modelContext.container)
         }
@@ -391,8 +405,10 @@ struct RecordsView: View {
 
     private func clearSimples() {
         for simple in completedSimples {
+            SyncManager.shared.registerDeletion(of: simple, context: modelContext)
             modelContext.delete(simple)
         }
+        try? modelContext.save()
         Task {
             await SyncManager.shared.sync(container: modelContext.container)
         }

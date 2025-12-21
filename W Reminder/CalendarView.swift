@@ -278,7 +278,7 @@ struct CalendarView: View {
             AddChecklistView(
                 checklist: checklist,
                 theme: theme
-            ) { title, notes, dueDate, remind, items, isDone, tags in
+            ) { title, notes, dueDate, remind, items, isDone, tags, recurrenceRule in
                 saveMilestone(
                     original: checklist,
                     title: title,
@@ -287,7 +287,8 @@ struct CalendarView: View {
                     remind: remind,
                     items: items,
                     isDone: isDone,
-                    tags: tags
+                    tags: tags,
+                    recurrenceRule: recurrenceRule
                 )
             }
         }
@@ -295,14 +296,15 @@ struct CalendarView: View {
             AddSimpleChecklistView(
                 checklist: checklist,
                 theme: theme
-            ) { title, notes, dueDate, remind, tags in
+            ) { title, notes, dueDate, remind, tags, recurrenceRule in
                 saveSimple(
                     original: checklist,
                     title: title,
                     notes: notes,
                     dueDate: dueDate,
                     remind: remind,
-                    tags: tags
+                    tags: tags,
+                    recurrenceRule: recurrenceRule
                 )
             }
         }
@@ -324,7 +326,8 @@ struct CalendarView: View {
         remind: Bool,
         items: [ChecklistItem],
         isDone: Bool,
-        tags: [Tag]
+        tags: [Tag],
+        recurrenceRule: String?
     ) {
         let checklist: Checklist
         if let original {
@@ -335,6 +338,7 @@ struct CalendarView: View {
             checklist.remind = remind
             checklist.isDone = isDone
             checklist.tags = tags
+            checklist.recurrenceRule = recurrenceRule
         } else {
             checklist = Checklist(
                 title: title,
@@ -342,7 +346,8 @@ struct CalendarView: View {
                 dueDate: dueDate,
                 remind: remind,
                 items: [],
-                tags: tags
+                tags: tags,
+                recurrenceRule: recurrenceRule
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
@@ -370,7 +375,8 @@ struct CalendarView: View {
         notes: String?,
         dueDate: Date?,
         remind: Bool,
-        tags: [Tag]
+        tags: [Tag],
+        recurrenceRule: String?
     ) {
         let checklist: SimpleChecklist
         if let original {
@@ -380,13 +386,16 @@ struct CalendarView: View {
             checklist.dueDate = dueDate
             checklist.remind = remind
             checklist.tags = tags
+            checklist.recurrenceRule = recurrenceRule
         } else {
             checklist = SimpleChecklist(
                 title: title,
                 notes: notes,
                 dueDate: dueDate,
                 remind: remind,
-                tags: tags
+                isDone: false,
+                tags: tags,
+                recurrenceRule: recurrenceRule
             )
             modelContext.insert(checklist)
         }

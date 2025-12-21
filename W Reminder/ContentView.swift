@@ -204,7 +204,7 @@ struct MilestoneView: View {
                 AddChecklistView(
                     checklist: nil,
                     theme: theme
-                ) { title, notes, dueDate, remind, items, isDone, tags in
+                ) { title, notes, dueDate, remind, items, isDone, tags, recurrenceRule in
                     saveChecklist(
                         original: nil,
                         title: title,
@@ -213,7 +213,8 @@ struct MilestoneView: View {
                         remind: remind,
                         items: items,
                         isDone: isDone,
-                        tags: tags
+                        tags: tags,
+                        recurrenceRule: recurrenceRule
                     )
                 }
             }
@@ -222,7 +223,7 @@ struct MilestoneView: View {
                 AddChecklistView(
                     checklist: checklist,
                     theme: theme
-                ) { title, notes, dueDate, remind, items, isDone, tags in
+                ) { title, notes, dueDate, remind, items, isDone, tags, recurrenceRule in
                     saveChecklist(
                         original: checklist,
                         title: title,
@@ -231,7 +232,8 @@ struct MilestoneView: View {
                         remind: remind,
                         items: items,
                         isDone: isDone,
-                        tags: tags
+                        tags: tags,
+                        recurrenceRule: recurrenceRule
                     )
                 }
             }
@@ -267,7 +269,8 @@ struct MilestoneView: View {
         remind: Bool,
         items: [ChecklistItem],
         isDone: Bool,
-        tags: [Tag]
+        tags: [Tag],
+        recurrenceRule: String?
     ) {
         let checklist: Checklist
         if let original {
@@ -276,7 +279,10 @@ struct MilestoneView: View {
             checklist.notes = notes
             checklist.remind = remind
             checklist.isDone = isDone
+            checklist.remind = remind
+            checklist.isDone = isDone
             checklist.tags = tags
+            checklist.recurrenceRule = recurrenceRule
         } else {
             checklist = Checklist(
                 title: title,
@@ -284,7 +290,8 @@ struct MilestoneView: View {
                 dueDate: dueDate,
                 remind: remind,
                 items: [],
-                tags: tags
+                tags: tags,
+                recurrenceRule: recurrenceRule
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
@@ -314,9 +321,11 @@ struct MilestoneView: View {
             for index in offsets {
                 let checklist = source[index]
                 NotificationManager.shared.cancelNotification(for: checklist)
+                SyncManager.shared.registerDeletion(of: checklist, context: modelContext)
                 modelContext.delete(checklist)
             }
             // Auto-sync on Delete
+            try? modelContext.save()
             Task {
                 await SyncManager.shared.sync(container: modelContext.container)
             }
@@ -467,6 +476,8 @@ struct AddChecklistView: View {
     @State private var items: [ChecklistItem] = [ChecklistItem(text: "New item", position: 0)]
     @State private var isDone: Bool = false
     @State private var selectedTags: [Tag] = []
+    @State private var recurrenceRule: String? = nil
+    @State private var detectedDate: SmartDateResult? = nil
     
     // Custom Tag Creation State
     @State private var showingNewTagSheet = false
@@ -474,7 +485,7 @@ struct AddChecklistView: View {
 
     var checklist: Checklist?
     let theme: Theme
-    var onSave: (String, String?, Date?, Bool, [ChecklistItem], Bool, [Tag]) -> Void
+    var onSave: (String, String?, Date?, Bool, [ChecklistItem], Bool, [Tag], String?) -> Void
 
     var body: some View {
         NavigationStack {
@@ -489,6 +500,7 @@ struct AddChecklistView: View {
                             notesSection
                             tagSelectionSection
                             deadlineSection
+                            recurrenceSection
                             itemsSection
                         }
                         .padding(.vertical)
@@ -530,6 +542,7 @@ struct AddChecklistView: View {
                 isSettingDueDate = checklist.dueDate != nil
                 isDone = checklist.isDone
                 items = checklist.items.sorted { $0.position < $1.position }
+                recurrenceRule = checklist.recurrenceRule
                 if items.isEmpty {
                     items = [ChecklistItem(text: "", position: 0)]
                 }
@@ -546,6 +559,7 @@ struct AddChecklistView: View {
                 isDone = false
                 items = [ChecklistItem(text: "New item", position: 0)]
                 selectedTags = []
+                recurrenceRule = nil
             }
         }
     }
@@ -562,8 +576,33 @@ struct AddChecklistView: View {
                 .padding()
                 .background(theme.primary.opacity(0.05))
                 .clipShape(RoundedRectangle(cornerRadius: 16))
+            
+            if let detected = detectedDate {
+                Button {
+                    dueDate = detected.date
+                    title = detected.cleanedText
+                    isSettingDueDate = true
+                    remind = true
+                    detectedDate = nil
+                } label: {
+                    HStack {
+                        Image(systemName: "sparkles")
+                        Text("Set due date to \(detected.date.formatted(date: .abbreviated, time: .shortened))")
+                    }
+                    .font(.caption.bold())
+                    .foregroundStyle(theme.accent)
+                    .padding(.horizontal)
+                }
+            }
         }
         .padding(.horizontal)
+        .onChange(of: title) { oldValue, newValue in
+            if let result = DateParser.shared.parse(newValue) {
+                withAnimation { detectedDate = result }
+            } else {
+                withAnimation { detectedDate = nil }
+            }
+        }
     }
 
     private var notesSection: some View {
@@ -723,6 +762,35 @@ struct AddChecklistView: View {
         .padding(.horizontal)
     }
 
+    private var recurrenceSection: some View {
+         VStack(alignment: .leading, spacing: 12) {
+             Text("Repeat")
+                 .font(.headline)
+                 .foregroundStyle(theme.secondary)
+                 .padding(.horizontal)
+             
+             HStack {
+                 Image(systemName: "repeat")
+                     .foregroundStyle(theme.accent)
+                 
+                 Picker("Recurrence", selection: $recurrenceRule) {
+                     Text("Never").tag(String?.none)
+                     Text("Daily").tag(String?.some("daily"))
+                     Text("Weekly").tag(String?.some("weekly"))
+                     Text("Monthly").tag(String?.some("monthly"))
+                 }
+                 .pickerStyle(.menu)
+                 .accentColor(theme.primary)
+                 
+                 Spacer()
+             }
+             .padding()
+             .background(theme.primary.opacity(0.05))
+             .clipShape(RoundedRectangle(cornerRadius: 16))
+             .padding(.horizontal)
+         }
+    }
+
     private var itemsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             Text("Checklist Items")
@@ -817,12 +885,13 @@ struct AddChecklistView: View {
                     }
                     onSave(
                         title,
-                        notes.isEmpty ? nil : notes,
-                        isSettingDueDate ? (dueDate ?? Date()) : nil,
-                        isSettingDueDate ? remind : false,
+                        notes,
+                        isSettingDueDate ? dueDate : nil,
+                        remind,
                         items.filter { !$0.text.isEmpty },
                         isDone,
-                        selectedTags
+                        selectedTags,
+                        recurrenceRule
                     )
                     dismiss()
                 } label: {

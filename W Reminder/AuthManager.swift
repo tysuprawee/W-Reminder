@@ -8,11 +8,12 @@
 import SwiftUI
 import Supabase
 
+@MainActor
 @Observable
 final class AuthManager {
     static let shared = AuthManager()
     
-    private(set) var client: SupabaseClient
+    nonisolated let client: SupabaseClient
     var session: Session?
     var user: User?
     var profile: Profile?

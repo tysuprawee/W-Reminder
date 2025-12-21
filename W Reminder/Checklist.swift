@@ -33,6 +33,7 @@ final class Checklist {
     var isDone: Bool = false
     var isStarred: Bool = false
     var userOrder: Int = 0
+    var recurrenceRule: String? // "daily", "weekly", "monthly", "custom"
     
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.checklist) var items: [ChecklistItem] = []
     
@@ -49,7 +50,8 @@ final class Checklist {
         items: [ChecklistItem] = [],
         tags: [Tag] = [],
         isStarred: Bool = false,
-        userOrder: Int = 0
+        userOrder: Int = 0,
+        recurrenceRule: String? = nil
     ) {
         self.title = title
         self.notes = notes
@@ -60,6 +62,7 @@ final class Checklist {
         self.items = items
         self.tags = tags
         self.userOrder = userOrder
+        self.recurrenceRule = recurrenceRule
     }
 }
 
@@ -74,6 +77,7 @@ final class SimpleChecklist {
     var isDone: Bool = false
     var isStarred: Bool = false
     var userOrder: Int = 0
+    var recurrenceRule: String?
     
     @Relationship var tags: [Tag] = []
 
@@ -85,7 +89,8 @@ final class SimpleChecklist {
         isDone: Bool = false,
         tags: [Tag] = [],
         isStarred: Bool = false,
-        userOrder: Int = 0
+        userOrder: Int = 0,
+        recurrenceRule: String? = nil
     ) {
         self.title = title
         self.notes = notes
@@ -96,5 +101,6 @@ final class SimpleChecklist {
         self.isStarred = isStarred
         self.tags = tags
         self.userOrder = userOrder
+        self.recurrenceRule = recurrenceRule
     }
 }

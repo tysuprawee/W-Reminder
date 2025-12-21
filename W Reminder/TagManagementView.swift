@@ -93,6 +93,8 @@ struct TagManagementView: View {
     private func deleteTags(at offsets: IndexSet) {
         for index in offsets {
             let tag = tags[index]
+            // Register deletion for sync
+            SyncManager.shared.registerDeletion(of: tag, context: modelContext)
             modelContext.delete(tag)
         }
 
