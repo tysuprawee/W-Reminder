@@ -303,6 +303,9 @@ struct SimpleChecklistView: View {
             )
             modelContext.insert(checklist)
         }
+        
+        // Immediate persistence
+        try? modelContext.save()
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
@@ -310,8 +313,9 @@ struct SimpleChecklistView: View {
         editing = nil
         
         // Auto-sync on Save
-        WidgetCenter.shared.reloadAllTimelines()
         Task {
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            WidgetCenter.shared.reloadAllTimelines()
             await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
@@ -326,8 +330,9 @@ struct SimpleChecklistView: View {
             }
             // Auto-sync on Delete
             try? modelContext.save()
-            WidgetCenter.shared.reloadAllTimelines()
             Task {
+                 try? await Task.sleep(nanoseconds: 500_000_000)
+                 WidgetCenter.shared.reloadAllTimelines()
                  await SyncManager.shared.sync(container: modelContext.container, silent: true)
             }
         }
@@ -704,7 +709,10 @@ struct AddSimpleChecklistView: View {
                                     CustomToggle(isOn: $isSettingDueDate.animation())
                                         .accessibilityIdentifier("deadlineToggle")
                                         .onChange(of: isSettingDueDate) { oldValue, newValue in
-                                            if newValue { remind = true }
+                                            if newValue { 
+                                                remind = true 
+                                                if dueDate == nil { dueDate = Date() }
+                                            }
                                         }
                                 }
                                 .padding()
@@ -712,9 +720,9 @@ struct AddSimpleChecklistView: View {
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
 
                                 if isSettingDueDate {
-                                    VStack(alignment: .leading, spacing: 16) {
+                                    VStack(spacing: 12) {
                                         DatePicker(
-                                            "",
+                                            "Due Date",
                                             selection: Binding(
                                                 get: { dueDate ?? Date() },
                                                 set: { dueDate = $0 }
@@ -723,7 +731,7 @@ struct AddSimpleChecklistView: View {
                                         )
                                         .datePickerStyle(.graphical)
                                         .tint(theme.accent)
-                                        .frame(maxHeight: 400) // Constrain height
+                                        .padding(.horizontal)
                                         
                                         Divider()
                                         

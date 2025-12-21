@@ -9,9 +9,7 @@ import SwiftUI
 import SwiftData
 import UserNotifications
 import UIKit
-import SwiftData
-import UserNotifications
-import UIKit
+import WidgetKit
 
 struct MilestoneView: View {
     @Environment(\.modelContext) private var modelContext
@@ -327,14 +325,26 @@ struct MilestoneView: View {
             checklist.isDone = isDone
             modelContext.insert(checklist)
         }
+        
+        // Immediate persistence
+        try? modelContext.save()
 
-        // sync items with relationship and preserve ordering
-        let sortedItems = items.enumerated().map { idx, item -> ChecklistItem in
-            item.position = idx
-            item.checklist = checklist
-            return item
+        // sync items with relationship and preserve ordering using valid objects
+        // We clone items to ensure we don't hit "Data not found" errors if context is stale
+        for oldItem in checklist.items {
+            modelContext.delete(oldItem)
         }
-        checklist.items = sortedItems
+        
+        let validItems = items.enumerated().map { idx, item -> ChecklistItem in
+            let newItem = ChecklistItem(
+                text: item.text,
+                isDone: item.isDone,
+                position: idx
+            )
+            newItem.checklist = checklist
+            return newItem
+        }
+        checklist.items = validItems
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
@@ -343,6 +353,9 @@ struct MilestoneView: View {
         
         // Auto-sync
         Task {
+            // Delay to ensure data persistence to disk before widget reload
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            WidgetCenter.shared.reloadAllTimelines()
             await SyncManager.shared.sync(container: modelContext.container, silent: true)
         }
     }
@@ -358,6 +371,8 @@ struct MilestoneView: View {
             // Auto-sync on Delete
             try? modelContext.save()
             Task {
+                try? await Task.sleep(nanoseconds: 500_000_000)
+                WidgetCenter.shared.reloadAllTimelines()
                 await SyncManager.shared.sync(container: modelContext.container, silent: true)
             }
         }
@@ -745,7 +760,10 @@ struct AddChecklistView: View {
                 CustomToggle(isOn: $isSettingDueDate.animation())
                     .accessibilityIdentifier("deadlineToggle")
                     .onChange(of: isSettingDueDate) { oldValue, newValue in
-                        if newValue { remind = true }
+                        if newValue { 
+                            remind = true 
+                            if dueDate == nil { dueDate = Date() }
+                        }
                     }
             }
             .padding()
