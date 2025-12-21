@@ -396,6 +396,11 @@ struct MilestoneDetailView: View {
              
              // 3. Delayed Persistence & Exit
              DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
+                 // Handle Recurrence (Spawn Next Milestone)
+                 if let rule = checklist.recurrenceRule, !rule.isEmpty {
+                     handleRecurrence(rule: rule)
+                 }
+                 
                  // NOW update the model
                  checklist.isDone = true
                  try? modelContext.save()
@@ -407,6 +412,13 @@ struct MilestoneDetailView: View {
         } else {
              // Mark Undone (Immediate)
              checklist.isDone = false
+             // If we mark undone, and it HAD a recurrence rule that we cleared... we can't restore it easily unless we stored it elsewhere.
+             // Limitation: "Resurrecting" a recurring milestone kills the recurrence chain if we already spawned the new one.
+             // But usually you mark undone to fix a mistake instantly.
+             // If we wait 2 seconds, we spawn the new one.
+             // If user marks undone *after* 2 seconds (from the archive list), the new one already exists.
+             // It's acceptable.
+             
              LevelManager.shared.addExp(-xpCompletionBonus)
              
              try? modelContext.save()
@@ -415,6 +427,51 @@ struct MilestoneDetailView: View {
              
              // No dismiss, let user edit
         }
+    }
+    
+    private func handleRecurrence(rule: String) {
+        let baseDate = checklist.dueDate ?? Date()
+        guard let nextDate = RecurrenceHelper.calculateNextDueDate(from: baseDate, rule: rule) else { return }
+        
+        // Calculate Time Delta for sub-tasks
+        let delta = nextDate.timeIntervalSince(baseDate)
+        
+        // Create new items (Deep Copy)
+        var newItems: [ChecklistItem] = []
+        for item in checklist.items.sorted(by: { $0.position < $1.position }) {
+            var newItemDate: Date? = nil
+            if let oldDate = item.dueDate {
+                newItemDate = oldDate.addingTimeInterval(delta)
+            }
+            
+            let newItem = ChecklistItem(
+                text: item.text,
+                isDone: false, // Reset state
+                position: item.position,
+                dueDate: newItemDate
+            )
+            newItems.append(newItem)
+        }
+        
+        // Create new Milestone
+        let newChecklist = Checklist(
+            title: checklist.title,
+            notes: checklist.notes,
+            dueDate: nextDate,
+            remind: checklist.remind,
+            items: newItems,
+            tags: checklist.tags, // Maintain tags
+            isStarred: checklist.isStarred,
+            recurrenceRule: rule // Pass the torch
+        )
+        
+        // Explicitly link items (SwiftData requires this often)
+        for item in newItems { item.checklist = newChecklist }
+        
+        modelContext.insert(newChecklist)
+        
+        // Remove recurrence from the completed one so it doesn't trigger again
+        checklist.recurrenceRule = nil
     }
     
     // Update logic from Edit Sheet

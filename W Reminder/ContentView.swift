@@ -555,13 +555,12 @@ struct AddChecklistView: View {
                         VStack(spacing: 24) {
                             titleSection
                             notesSection
-                            tagSelectionSection
                             deadlineSection
                             recurrenceSection
-                            // itemsSection 
-                            // ^ Moved to Detail View as per user request
+                            tagSelectionSection
                         }
                         .padding(.vertical)
+                        .padding(.bottom, 120) // Ensure content scrolls above bottom bar
                     }
                 }
 

@@ -266,7 +266,7 @@ struct Achievement: Identifiable {
         Achievement(id: "streak_60", title: "Two Months", description: "Reach a 60-day streak", icon: "calendar.circle.fill"),
         Achievement(id: "streak_75", title: "Diamond", description: "Reach a 75-day streak", icon: "suit.diamond.fill"),
         Achievement(id: "streak_90", title: "Quarterly", description: "Reach a 90-day streak", icon: "chart.pie.fill"),
-        Achievement(id: "streak_100", title: "Century Streak", description: "Reach a 100-day streak", icon: "100.square.fill"),
+        Achievement(id: "streak_100", title: "Century Streak", description: "Reach a 100-day streak", icon: "100.circle.fill"),
 
         // MARK: LEVELS
         Achievement(id: "level_2", title: "Novice", description: "Reach Level 2", icon: "leaf"),

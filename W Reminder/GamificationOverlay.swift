@@ -13,10 +13,12 @@ struct GamificationOverlay: View {
             VStack {
                 Spacer()
                 ForEach(xpToasts) { toast in
-                    Text("+\(toast.amount) XP")
+                    Text("\(toast.amount > 0 ? "+ " : "")\(toast.amount) XP")
                         .font(.system(size: 24, weight: .bold, design: .rounded))
                         .foregroundStyle(
-                            LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom)
+                            toast.amount > 0 ?
+                            LinearGradient(colors: [.yellow, .orange], startPoint: .top, endPoint: .bottom) :
+                            LinearGradient(colors: [.gray, .red], startPoint: .top, endPoint: .bottom)
                         )
                         .shadow(color: .black.opacity(0.3), radius: 2, x: 1, y: 1)
                         .scaleEffect(toast.isAnimating ? 1.2 : 0.5)
