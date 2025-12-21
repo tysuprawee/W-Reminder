@@ -43,6 +43,7 @@ struct RootView: View {
     
     @State private var authInitialized = false
     private let authManager = AuthManager.shared
+    @State private var syncManager = SyncManager.shared // Observe updates
 
     var body: some View {
         Group {
@@ -74,6 +75,16 @@ struct RootView: View {
              }
         }
         .preferredColorScheme(theme.isDark ? .dark : .light)
+        .overlay {
+            if StreakManager.shared.showCelebration {
+                ConfettiView()
+                    .allowsHitTesting(false) // Don't block touches
+            }
+            
+            if syncManager.isSyncing {
+                SyncLoadingView()
+            }
+        }
     }
 
     // Rename for clarity, though "authenticatedView" contains the Tabs
@@ -124,6 +135,87 @@ struct RootView: View {
     }
 }
 
+// MARK: - Sync Loading View
+struct SyncLoadingView: View {
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.3)
+                .ignoresSafeArea()
+            
+            VStack(spacing: 16) {
+                ProgressView()
+                    .controlSize(.large)
+                    .tint(.white)
+                
+                Text("Syncing...")
+                    .font(.headline)
+                    .foregroundStyle(.white)
+            }
+            .padding(24)
+            .background(.ultraThinMaterial)
+            .clipShape(RoundedRectangle(cornerRadius: 16))
+            .shadow(radius: 10)
+        }
+    }
+}
+
+// MARK: - Confetti Effect
+struct ConfettiView: View {
+    @State private var animate = false
+    
+    var body: some View {
+        ZStack {
+            ForEach(0..<50) { _ in
+                ConfettiParticle()
+            }
+        }
+        .onAppear {
+            animate = true
+        }
+    }
+}
+
+struct ConfettiParticle: View {
+    @State private var animationDuration = Double.random(in: 1...2)
+    @State private var xOffset = Double.random(in: -100...100)
+    @State private var yOffset = Double.random(in: -200...200)
+    @State private var rotation = Double.random(in: 0...360)
+    @State private var color = [Color.red, .blue, .green, .yellow, .pink, .purple, .orange].randomElement()!
+    @State private var opacity = 1.0
+    
+    var body: some View {
+        Circle()
+            .fill(color)
+            .frame(width: 8, height: 8)
+            .offset(x: 0, y: 0) // Start at center
+            .overlay(
+                 Circle().stroke(Color.white, lineWidth: 1)
+            )
+            .modifier(ParticleModifier(x: xOffset, y: yOffset, duration: animationDuration, rotate: rotation))
+    }
+}
+
+struct ParticleModifier: ViewModifier {
+    let x: Double
+    let y: Double
+    let duration: Double
+    let rotate: Double
+    
+    @State private var isAnimating = false
+    
+    func body(content: Content) -> some View {
+        content
+            .offset(x: isAnimating ? x : 0, y: isAnimating ? y : 0)
+            .rotationEffect(.degrees(isAnimating ? rotate : 0))
+            .opacity(isAnimating ? 0 : 1)
+            .onAppear {
+                withAnimation(.easeOut(duration: duration)) {
+                    isAnimating = true
+                }
+            }
+    }
+}
+
 struct SettingsView: View {
     @Environment(\.modelContext) private var modelContext // Add this
     @Binding var selectedThemeId: String
@@ -140,6 +232,7 @@ struct SettingsView: View {
 
     @State private var authManager = AuthManager.shared
     @State private var showLoginSheet = false
+    @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
 
     var body: some View {
         NavigationStack {
@@ -177,7 +270,7 @@ struct SettingsView: View {
                     }
                 }
                 
-                Section("Notifications") {
+                Section("Notifications & Haptics") {
                     HStack {
                         Label("Status", systemImage: "bell.badge.fill")
                         Spacer()
@@ -187,6 +280,11 @@ struct SettingsView: View {
                         Text(statusLabel)
                             .foregroundStyle(.secondary)
                     }
+                    
+                    Toggle(isOn: $isHapticsEnabled) {
+                        Label("Vibration", systemImage: "iphone.radiowaves.left.and.right")
+                    }
+                    .tint(theme.accent)
                     
                     // Silent Mode Reminder
                     HStack(alignment: .top, spacing: 12) {
@@ -291,7 +389,7 @@ struct SettingsView: View {
                     HStack {
                         Label("Version", systemImage: "info.circle")
                         Spacer()
-                        Text("1.02 beta")
+                        Text("1.03 beta")
                             .foregroundStyle(.secondary)
                             .font(.subheadline)
                     }

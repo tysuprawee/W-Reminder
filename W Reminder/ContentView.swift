@@ -25,6 +25,7 @@ struct MilestoneView: View {
     @State private var filterTag: Tag? = nil // nil = all
     @State private var showOnlyStarred = false
     @State private var refreshID = UUID() // Force refresh TimelineView
+    @State private var showStreakInfo = false
 
     enum SortOption: Identifiable, CaseIterable {
         case manual
@@ -81,6 +82,35 @@ struct MilestoneView: View {
                             Capsule().stroke(StreakManager.shared.isStreakActiveToday ? Color.orange.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1)
                         )
                         .onAppear { StreakManager.shared.checkStreak() }
+                        .onTapGesture {
+                            showStreakInfo = true
+                        }
+                        .sheet(isPresented: $showStreakInfo) {
+                            VStack(spacing: 16) {
+                                Image(systemName: "flame.fill")
+                                    .font(.system(size: 50))
+                                    .foregroundStyle(.orange)
+                                    .padding(.top)
+                                Text("Streak Power!")
+                                    .font(.title2.bold())
+                                Text("Complete at least one task every day to keep your streak alive. Don't let the fire go out!")
+                                    .font(.body)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+                                    .fixedSize(horizontal: false, vertical: true) // Ensure text wraps
+                                
+                                Button("Got it!") {
+                                    showStreakInfo = false
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .padding(.top)
+                            }
+                            .padding()
+                            .presentationDetents([.fraction(0.35)]) // Take up bottom 35%
+                            .presentationDragIndicator(.visible)
+                        }
                         .padding(.trailing, 8)
                         Button {
                             withAnimation {
@@ -487,6 +517,7 @@ struct AddChecklistView: View {
     @Environment(\.dismiss) private var dismiss
     @Environment(\.modelContext) private var modelContext
     @Query private var tags: [Tag]
+    @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
 
 
     @State private var title: String = ""
@@ -775,6 +806,12 @@ struct AddChecklistView: View {
                     .font(.headline)
                 Spacer()
                 CustomToggle(isOn: $isDone)
+                    .onChange(of: isDone) { old, new in
+                        if new && isHapticsEnabled {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                        }
+                    }
             }
             .padding()
             .background(theme.primary.opacity(0.05))
@@ -830,6 +867,12 @@ struct AddChecklistView: View {
                 HStack {
                     Button {
                         item.isDone.toggle()
+                        
+                        if isHapticsEnabled && item.isDone {
+                             let generator = UIImpactFeedbackGenerator(style: .light)
+                             generator.impactOccurred()
+                        }
+                        
                         // Auto-update parent status
                         isDone = !items.isEmpty && items.allSatisfy({ $0.isDone })
                     } label: {

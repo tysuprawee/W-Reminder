@@ -17,6 +17,8 @@ struct SimpleChecklistView: View {
     @State private var filterTag: Tag? = nil // nil = all
     @State private var showOnlyStarred = false
     @State private var refreshID = UUID() // Force refresh TimelineView
+    @State private var showStreakInfo = false
+    @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true // Listen to setting
 
     enum SortOption {
         case manual
@@ -70,6 +72,35 @@ struct SimpleChecklistView: View {
                             Capsule().stroke(StreakManager.shared.isStreakActiveToday ? Color.orange.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1)
                         )
                         .onAppear { StreakManager.shared.checkStreak() }
+                        .onTapGesture {
+                            showStreakInfo = true
+                        }
+                        .sheet(isPresented: $showStreakInfo) {
+                            VStack(spacing: 16) {
+                                Image(systemName: "flame.fill")
+                                    .font(.system(size: 50))
+                                    .foregroundStyle(.orange)
+                                    .padding(.top)
+                                Text("Streak Power!")
+                                    .font(.title2.bold())
+                                Text("Complete at least one task every day to keep your streak alive. Don't let the fire go out!")
+                                    .font(.body)
+                                    .multilineTextAlignment(.center)
+                                    .foregroundStyle(.secondary)
+                                    .padding(.horizontal)
+                                    .fixedSize(horizontal: false, vertical: true)
+                                
+                                Button("Got it!") {
+                                    showStreakInfo = false
+                                }
+                                .buttonStyle(.borderedProminent)
+                                .tint(.orange)
+                                .padding(.top)
+                            }
+                            .padding()
+                            .presentationDetents([.fraction(0.35)])
+                            .presentationDragIndicator(.visible)
+                        }
                         .padding(.trailing, 8)
                         
                         // Star Filter Button
@@ -333,6 +364,12 @@ struct SimpleChecklistView: View {
                             checklist.isDone.toggle()
                         }
                         NotificationManager.shared.cancelNotification(for: checklist)
+                        
+                        // Haptic Feedback
+                        if isHapticsEnabled && checklist.isDone {
+                            let generator = UIImpactFeedbackGenerator(style: .medium)
+                            generator.impactOccurred()
+                        }
                         
                         if checklist.isDone {
                             StreakManager.shared.incrementStreak()

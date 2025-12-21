@@ -15,6 +15,7 @@ final class StreakManager {
     // Public Observable Properties
     var currentStreak: Int = 0
     var isStreakActiveToday: Bool = false // True if a task was completed today
+    var showCelebration: Bool = false // Triggers animation on Views
     
     // Persistence Keys
     private let keyStreak = "userStreakCount"
@@ -60,6 +61,13 @@ final class StreakManager {
         }
         
         // Save
+        if !isStreakActiveToday {
+             showCelebration = true // Trigger animation only if it wasn't already active
+             // Auto-hide after 3 seconds
+             DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
+                 self.showCelebration = false
+             }
+        }
         isStreakActiveToday = true
         userDefaults.set(currentStreak, forKey: keyStreak)
         userDefaults.set(now, forKey: keyLastDate)

@@ -20,6 +20,7 @@ struct CalendarView: View {
     @State private var selectedDate: Date = Date()
     @State private var editingMilestone: Checklist?
     @State private var editingSimple: SimpleChecklist?
+    @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
 
     private var calendar: Calendar { Calendar.current }
     
@@ -252,6 +253,13 @@ struct CalendarView: View {
                                     withAnimation(.easeInOut) {
                                         checklist.isDone.toggle()
                                     }
+                                    
+                                    // Haptic Feedback
+                                    if isHapticsEnabled && checklist.isDone {
+                                        let generator = UIImpactFeedbackGenerator(style: .medium)
+                                        generator.impactOccurred()
+                                    }
+                                    
                                     NotificationManager.shared.cancelNotification(for: checklist)
                                     if checklist.isDone {
                                         StreakManager.shared.incrementStreak()
