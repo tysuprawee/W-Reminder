@@ -53,6 +53,25 @@ struct SimpleChecklistView: View {
                         
                         Spacer()
                         
+                        // Streak Counter
+                        HStack(spacing: 4) {
+                            Image(systemName: "flame.fill")
+                                .foregroundStyle(StreakManager.shared.isStreakActiveToday ? .orange : .gray)
+                            Text("\(StreakManager.shared.currentStreak)")
+                                .fontWeight(.bold)
+                                .contentTransition(.numericText())
+                        }
+                        .font(.headline)
+                        .padding(.horizontal, 12)
+                        .padding(.vertical, 8)
+                        .background(.ultraThinMaterial)
+                        .clipShape(Capsule())
+                        .overlay(
+                            Capsule().stroke(StreakManager.shared.isStreakActiveToday ? Color.orange.opacity(0.5) : Color.gray.opacity(0.2), lineWidth: 1)
+                        )
+                        .onAppear { StreakManager.shared.checkStreak() }
+                        .padding(.trailing, 8)
+                        
                         // Star Filter Button
                         Button {
                             withAnimation {
@@ -314,6 +333,10 @@ struct SimpleChecklistView: View {
                             checklist.isDone.toggle()
                         }
                         NotificationManager.shared.cancelNotification(for: checklist)
+                        
+                        if checklist.isDone {
+                            StreakManager.shared.incrementStreak()
+                        }
                         
                         // Auto-sync on Toggle Done
                         Task {
@@ -683,6 +706,14 @@ struct AddSimpleChecklistView: View {
                                 .background(theme.primary.opacity(0.05))
                                 .clipShape(RoundedRectangle(cornerRadius: 16))
                                 .padding(.horizontal)
+                                
+                                if let rule = recurrenceRule {
+                                    Text(RecurrenceHelper.description(for: rule, date: isSettingDueDate ? (dueDate ?? Date()) : Date()))
+                                        .font(.caption)
+                                        .foregroundStyle(theme.accent)
+                                        .padding(.horizontal, 32)
+                                        .transition(.opacity)
+                                }
                             }
                             .padding(.bottom, 80)
                         }

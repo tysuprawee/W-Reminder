@@ -11,26 +11,15 @@ import UserNotifications
 
 @main
 struct W_ReminderApp: App {
-    var sharedModelContainer: ModelContainer = {
-        let schema = Schema([
-            Checklist.self,
-            ChecklistItem.self,
-            SimpleChecklist.self,
-            Tag.self,
-            DeletedRecord.self,
-        ])
-        let modelConfiguration = ModelConfiguration(schema: schema, isStoredInMemoryOnly: false)
-
-        do {
-            return try ModelContainer(for: schema, configurations: [modelConfiguration])
-        } catch {
-            fatalError("Could not create ModelContainer: \(error)")
-        }   
-    }()
+    // Use the shared persistence controller (App Group aware)
+    var sharedModelContainer: ModelContainer = SharedPersistence.shared.container
 
     init() {
         // Ask for notification permission when the app starts
         NotificationManager.shared.requestAuthorization()
+        
+        // Restore Streak state on launch
+        StreakManager.shared.checkStreak()
     }
 
     var body: some Scene {

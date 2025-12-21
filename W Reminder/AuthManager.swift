@@ -124,8 +124,17 @@ final class AuthManager {
             
             self.profile = profile
             
-            // Apply preferences to Local (UI will update via AppStorage/Binding)
+            // Sync Streaks (Cloud -> Local)
             await MainActor.run {
+                if let cloudStreak = profile.streakCount {
+                     // Only overwrite local if cloud data exists
+                     StreakManager.shared.updateFromCloud(
+                        count: cloudStreak,
+                        lastDate: profile.streakLastActive
+                     )
+                }
+                
+                // Apply preferences
                 if let themeId = profile.themeId {
                     UserDefaults.standard.set(themeId, forKey: "selectedThemeId")
                 }
@@ -135,6 +144,26 @@ final class AuthManager {
             }
         } catch {
             print("Error fetching profile: \(error)")
+        }
+    }
+    
+    // New Function to Push Streak
+    func updateStreak(count: Int, lastActive: Date) async {
+        guard let userId = user?.id else { return }
+        
+        let update = ProfileStreakUpdate(
+            streakCount: count,
+            streakLastActive: lastActive
+        )
+        
+        do {
+            try await client
+                .from("profiles")
+                .update(update)
+                .eq("id", value: userId)
+                .execute()
+        } catch {
+             print("Error updating streak: \(error)")
         }
     }
     
@@ -179,6 +208,8 @@ struct Profile: Codable {
     let avatarUrl: String?
     let themeId: String?
     let notificationSound: String?
+    let streakCount: Int?
+    let streakLastActive: Date?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -187,6 +218,8 @@ struct Profile: Codable {
         case avatarUrl = "avatar_url"
         case themeId = "theme_id"
         case notificationSound = "notification_sound"
+        case streakCount = "streak_count"
+        case streakLastActive = "streak_last_active"
     }
 }
 
@@ -197,5 +230,15 @@ struct ProfileUpdate: Encodable {
     enum CodingKeys: String, CodingKey {
         case themeId = "theme_id"
         case notificationSound = "notification_sound"
+    }
+}
+
+struct ProfileStreakUpdate: Encodable {
+    let streakCount: Int
+    let streakLastActive: Date
+    
+    enum CodingKeys: String, CodingKey {
+        case streakCount = "streak_count"
+        case streakLastActive = "streak_last_active"
     }
 }

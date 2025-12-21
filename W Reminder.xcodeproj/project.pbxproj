@@ -13,6 +13,9 @@
 		8E79EABC2EF695DB0071BAF7 /* Realtime in Frameworks */ = {isa = PBXBuildFile; productRef = 8E79EABB2EF695DB0071BAF7 /* Realtime */; };
 		8E79EABE2EF695DB0071BAF7 /* Storage in Frameworks */ = {isa = PBXBuildFile; productRef = 8E79EABD2EF695DB0071BAF7 /* Storage */; };
 		8E79EAC02EF695DB0071BAF7 /* Supabase in Frameworks */ = {isa = PBXBuildFile; productRef = 8E79EABF2EF695DB0071BAF7 /* Supabase */; };
+		8E79EADF2EF7812A0071BAF7 /* WidgetKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E79EADE2EF7812A0071BAF7 /* WidgetKit.framework */; };
+		8E79EAE12EF7812A0071BAF7 /* SwiftUI.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 8E79EAE02EF7812A0071BAF7 /* SwiftUI.framework */; };
+		8E79EAEE2EF7812B0071BAF7 /* WReminderWidget.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 8E79EADD2EF7812A0071BAF7 /* WReminderWidget.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -30,13 +33,69 @@
 			remoteGlobalIDString = 8EEC8A232ECF9892009E9C8A;
 			remoteInfo = "W Reminder";
 		};
+		8E79EAEC2EF7812B0071BAF7 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 8EEC8A1C2ECF9892009E9C8A /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = 8E79EADC2EF7812A0071BAF7;
+			remoteInfo = WReminderWidgetExtension;
+		};
 /* End PBXContainerItemProxy section */
+
+/* Begin PBXCopyFilesBuildPhase section */
+		8E79EAF32EF7812B0071BAF7 /* Embed Foundation Extensions */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 13;
+			files = (
+				8E79EAEE2EF7812B0071BAF7 /* WReminderWidget.appex in Embed Foundation Extensions */,
+			);
+			name = "Embed Foundation Extensions";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		8E64B6112EE94E6A00916B45 /* W ReminderTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "W ReminderTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		8E64B6282EEA82F900916B45 /* W ReminderUITests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "W ReminderUITests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E79EADD2EF7812A0071BAF7 /* WReminderWidget.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = WReminderWidget.appex; sourceTree = BUILT_PRODUCTS_DIR; };
+		8E79EADE2EF7812A0071BAF7 /* WidgetKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = WidgetKit.framework; path = System/Library/Frameworks/WidgetKit.framework; sourceTree = SDKROOT; };
+		8E79EAE02EF7812A0071BAF7 /* SwiftUI.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SwiftUI.framework; path = System/Library/Frameworks/SwiftUI.framework; sourceTree = SDKROOT; };
+		8E79EAF52EF782500071BAF7 /* WReminderWidget.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = WReminderWidget.entitlements; sourceTree = "<group>"; };
+		8E79EB5F2EF79D0C0071BAF7 /* W-Reminder-Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "W-Reminder-Info.plist"; sourceTree = "<group>"; };
 		8EEC8A242ECF9892009E9C8A /* W Reminder.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "W Reminder.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
+
+/* Begin PBXFileSystemSynchronizedBuildFileExceptionSet section */
+		8E79EAF72EF782FB0071BAF7 /* Exceptions for "W Reminder" folder in "WReminderWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Checklist.swift,
+				DateParser.swift,
+				DeletedRecord.swift,
+				SharedPersistence.swift,
+				Tag.swift,
+				Theme.swift,
+				WReminderWidget.swift,
+			);
+			target = 8E79EADC2EF7812A0071BAF7 /* WReminderWidget */;
+		};
+		8E79EAFF2EF790160071BAF7 /* Exceptions for "W Reminder" folder in "W Reminder" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				WReminderWidget.swift,
+			);
+			target = 8EEC8A232ECF9892009E9C8A /* W Reminder */;
+		};
+		8E79EB632EF7A3670071BAF7 /* Exceptions for "WReminderWidget" folder in "WReminderWidget" target */ = {
+			isa = PBXFileSystemSynchronizedBuildFileExceptionSet;
+			membershipExceptions = (
+				Info.plist,
+			);
+			target = 8E79EADC2EF7812A0071BAF7 /* WReminderWidget */;
+		};
+/* End PBXFileSystemSynchronizedBuildFileExceptionSet section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
 		8E64B6122EE94E6A00916B45 /* W ReminderTests */ = {
@@ -49,8 +108,20 @@
 			path = "W ReminderUITests";
 			sourceTree = "<group>";
 		};
+		8E79EAE22EF7812A0071BAF7 /* WReminderWidget */ = {
+			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8E79EB632EF7A3670071BAF7 /* Exceptions for "WReminderWidget" folder in "WReminderWidget" target */,
+			);
+			path = WReminderWidget;
+			sourceTree = "<group>";
+		};
 		8EEC8A262ECF9892009E9C8A /* W Reminder */ = {
 			isa = PBXFileSystemSynchronizedRootGroup;
+			exceptions = (
+				8E79EAFF2EF790160071BAF7 /* Exceptions for "W Reminder" folder in "W Reminder" target */,
+				8E79EAF72EF782FB0071BAF7 /* Exceptions for "W Reminder" folder in "WReminderWidget" target */,
+			);
 			path = "W Reminder";
 			sourceTree = "<group>";
 		};
@@ -68,6 +139,15 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8E79EADA2EF7812A0071BAF7 /* Frameworks */ = {
+			isa = PBXFrameworksBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+				8E79EAE12EF7812A0071BAF7 /* SwiftUI.framework in Frameworks */,
+				8E79EADF2EF7812A0071BAF7 /* WidgetKit.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -90,6 +170,8 @@
 		8E79EAB42EF695CA0071BAF7 /* Frameworks */ = {
 			isa = PBXGroup;
 			children = (
+				8E79EADE2EF7812A0071BAF7 /* WidgetKit.framework */,
+				8E79EAE02EF7812A0071BAF7 /* SwiftUI.framework */,
 			);
 			name = Frameworks;
 			sourceTree = "<group>";
@@ -97,9 +179,12 @@
 		8EEC8A1B2ECF9892009E9C8A = {
 			isa = PBXGroup;
 			children = (
+				8E79EB5F2EF79D0C0071BAF7 /* W-Reminder-Info.plist */,
+				8E79EAF52EF782500071BAF7 /* WReminderWidget.entitlements */,
 				8EEC8A262ECF9892009E9C8A /* W Reminder */,
 				8E64B6122EE94E6A00916B45 /* W ReminderTests */,
 				8E64B6292EEA82F900916B45 /* W ReminderUITests */,
+				8E79EAE22EF7812A0071BAF7 /* WReminderWidget */,
 				8E79EAB42EF695CA0071BAF7 /* Frameworks */,
 				8EEC8A252ECF9892009E9C8A /* Products */,
 			);
@@ -111,6 +196,7 @@
 				8EEC8A242ECF9892009E9C8A /* W Reminder.app */,
 				8E64B6112EE94E6A00916B45 /* W ReminderTests.xctest */,
 				8E64B6282EEA82F900916B45 /* W ReminderUITests.xctest */,
+				8E79EADD2EF7812A0071BAF7 /* WReminderWidget.appex */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -164,6 +250,28 @@
 			productReference = 8E64B6282EEA82F900916B45 /* W ReminderUITests.xctest */;
 			productType = "com.apple.product-type.bundle.ui-testing";
 		};
+		8E79EADC2EF7812A0071BAF7 /* WReminderWidget */ = {
+			isa = PBXNativeTarget;
+			buildConfigurationList = 8E79EAF02EF7812B0071BAF7 /* Build configuration list for PBXNativeTarget "WReminderWidget" */;
+			buildPhases = (
+				8E79EAD92EF7812A0071BAF7 /* Sources */,
+				8E79EADA2EF7812A0071BAF7 /* Frameworks */,
+				8E79EADB2EF7812A0071BAF7 /* Resources */,
+			);
+			buildRules = (
+			);
+			dependencies = (
+			);
+			fileSystemSynchronizedGroups = (
+				8E79EAE22EF7812A0071BAF7 /* WReminderWidget */,
+			);
+			name = WReminderWidget;
+			packageProductDependencies = (
+			);
+			productName = WReminderWidgetExtension;
+			productReference = 8E79EADD2EF7812A0071BAF7 /* WReminderWidget.appex */;
+			productType = "com.apple.product-type.app-extension";
+		};
 		8EEC8A232ECF9892009E9C8A /* W Reminder */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = 8EEC8A342ECF9893009E9C8A /* Build configuration list for PBXNativeTarget "W Reminder" */;
@@ -171,10 +279,12 @@
 				8EEC8A202ECF9892009E9C8A /* Sources */,
 				8EEC8A212ECF9892009E9C8A /* Frameworks */,
 				8EEC8A222ECF9892009E9C8A /* Resources */,
+				8E79EAF32EF7812B0071BAF7 /* Embed Foundation Extensions */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				8E79EAED2EF7812B0071BAF7 /* PBXTargetDependency */,
 			);
 			fileSystemSynchronizedGroups = (
 				8EEC8A262ECF9892009E9C8A /* W Reminder */,
@@ -210,6 +320,9 @@
 						CreatedOnToolsVersion = 16.2;
 						TestTargetID = 8EEC8A232ECF9892009E9C8A;
 					};
+					8E79EADC2EF7812A0071BAF7 = {
+						CreatedOnToolsVersion = 16.2;
+					};
 					8EEC8A232ECF9892009E9C8A = {
 						CreatedOnToolsVersion = 16.2;
 					};
@@ -235,6 +348,7 @@
 				8EEC8A232ECF9892009E9C8A /* W Reminder */,
 				8E64B6102EE94E6A00916B45 /* W ReminderTests */,
 				8E64B6272EEA82F900916B45 /* W ReminderUITests */,
+				8E79EADC2EF7812A0071BAF7 /* WReminderWidget */,
 			);
 		};
 /* End PBXProject section */
@@ -248,6 +362,13 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		8E64B6262EEA82F900916B45 /* Resources */ = {
+			isa = PBXResourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		8E79EADB2EF7812A0071BAF7 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
@@ -278,6 +399,13 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
+		8E79EAD92EF7812A0071BAF7 /* Sources */ = {
+			isa = PBXSourcesBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+		};
 		8EEC8A202ECF9892009E9C8A /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -297,6 +425,11 @@
 			isa = PBXTargetDependency;
 			target = 8EEC8A232ECF9892009E9C8A /* W Reminder */;
 			targetProxy = 8E64B62E2EEA82F900916B45 /* PBXContainerItemProxy */;
+		};
+		8E79EAED2EF7812B0071BAF7 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = 8E79EADC2EF7812A0071BAF7 /* WReminderWidget */;
+			targetProxy = 8E79EAEC2EF7812B0071BAF7 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 
@@ -371,6 +504,62 @@
 			};
 			name = Release;
 		};
+		8E79EAF12EF7812B0071BAF7 /* Debug */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WReminderWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4H48F9L3R2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WReminderWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder.WReminderWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Debug;
+		};
+		8E79EAF22EF7812B0071BAF7 /* Release */ = {
+			isa = XCBuildConfiguration;
+			buildSettings = {
+				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				ASSETCATALOG_COMPILER_WIDGET_BACKGROUND_COLOR_NAME = WidgetBackground;
+				CODE_SIGN_ENTITLEMENTS = WReminderWidget.entitlements;
+				CODE_SIGN_STYLE = Automatic;
+				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 4H48F9L3R2;
+				GENERATE_INFOPLIST_FILE = NO;
+				INFOPLIST_FILE = WReminderWidget/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "";
+				INFOPLIST_KEY_NSHumanReadableCopyright = "";
+				LD_RUNPATH_SEARCH_PATHS = (
+					"$(inherited)",
+					"@executable_path/Frameworks",
+					"@executable_path/../../Frameworks",
+				);
+				MARKETING_VERSION = 1.0;
+				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder.WReminderWidget";
+				PRODUCT_NAME = "$(TARGET_NAME)";
+				SKIP_INSTALL = YES;
+				SWIFT_EMIT_LOC_STRINGS = YES;
+				SWIFT_VERSION = 5.0;
+				TARGETED_DEVICE_FAMILY = "1,2";
+			};
+			name = Release;
+		};
 		8EEC8A322ECF9893009E9C8A /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -428,6 +617,7 @@
 				MTL_ENABLE_DEBUG_INFO = INCLUDE_SOURCE;
 				MTL_FAST_MATH = YES;
 				ONLY_ACTIVE_ARCH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tysuprawee.W-Reminder.WReminderWidget";
 				SDKROOT = iphoneos;
 				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
@@ -484,6 +674,7 @@
 				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
 				MTL_ENABLE_DEBUG_INFO = NO;
 				MTL_FAST_MATH = YES;
+				PRODUCT_BUNDLE_IDENTIFIER = "com.tysuprawee.W-Reminder.WReminderWidget";
 				SDKROOT = iphoneos;
 				SWIFT_COMPILATION_MODE = wholemodule;
 				VALIDATE_PRODUCT = YES;
@@ -495,6 +686,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "W Reminder/W Reminder.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"W Reminder/Preview Content\"";
@@ -511,7 +703,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.03;
+				MARKETING_VERSION = 1.02;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -525,6 +717,7 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
+				CODE_SIGN_ENTITLEMENTS = "W Reminder/W Reminder.entitlements";
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "\"W Reminder/Preview Content\"";
@@ -541,7 +734,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				MARKETING_VERSION = 1.03;
+				MARKETING_VERSION = 1.02;
 				PRODUCT_BUNDLE_IDENTIFIER = "CrazyStudio.W-Reminder";
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -567,6 +760,15 @@
 			buildConfigurations = (
 				8E64B6312EEA82F900916B45 /* Debug */,
 				8E64B6322EEA82F900916B45 /* Release */,
+			);
+			defaultConfigurationIsVisible = 0;
+			defaultConfigurationName = Release;
+		};
+		8E79EAF02EF7812B0071BAF7 /* Build configuration list for PBXNativeTarget "WReminderWidget" */ = {
+			isa = XCConfigurationList;
+			buildConfigurations = (
+				8E79EAF12EF7812B0071BAF7 /* Debug */,
+				8E79EAF22EF7812B0071BAF7 /* Release */,
 			);
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;

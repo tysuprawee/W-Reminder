@@ -253,6 +253,9 @@ struct CalendarView: View {
                                         checklist.isDone.toggle()
                                     }
                                     NotificationManager.shared.cancelNotification(for: checklist)
+                                    if checklist.isDone {
+                                        StreakManager.shared.incrementStreak()
+                                    }
                                 },
                                 onEdit: {
                                     editingSimple = checklist

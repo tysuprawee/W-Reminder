@@ -301,7 +301,8 @@ final class SyncManager {
                 remind: list.remind,
                 isDone: list.isDone,
                 isStarred: list.isStarred,
-                userOrder: list.userOrder
+                userOrder: list.userOrder,
+                recurrenceRule: list.recurrenceRule
             )
             try await client.from("simple_checklists").upsert(dto).execute()
             
@@ -355,6 +356,7 @@ final class SyncManager {
                 listToUpdate.isDone = cloudList.isDone
                 listToUpdate.isStarred = cloudList.isStarred
                 listToUpdate.userOrder = cloudList.userOrder
+                listToUpdate.recurrenceRule = cloudList.recurrenceRule
             } else {
                 let newList = SimpleChecklist(
                     title: cloudList.title,
@@ -364,7 +366,8 @@ final class SyncManager {
                     isDone: cloudList.isDone,
                     tags: [], // Will set below
                     isStarred: cloudList.isStarred,
-                    userOrder: cloudList.userOrder
+                    userOrder: cloudList.userOrder,
+                    recurrenceRule: cloudList.recurrenceRule
                 )
                 // We need to ensure ID matches.
                 // SwiftData allows setting `id` if we define it in init or property.
@@ -417,7 +420,8 @@ final class SyncManager {
                 remind: list.remind,
                 isDone: list.isDone,
                 isStarred: list.isStarred,
-                userOrder: list.userOrder
+                userOrder: list.userOrder,
+                recurrenceRule: list.recurrenceRule
             )
             try await client.from("milestones").upsert(dto).execute()
             
@@ -476,6 +480,7 @@ final class SyncManager {
                 listToUpdate.isDone = cloudList.isDone
                 listToUpdate.isStarred = cloudList.isStarred
                 listToUpdate.userOrder = cloudList.userOrder
+                listToUpdate.recurrenceRule = cloudList.recurrenceRule
             } else {
                 let newList = Checklist(
                     title: cloudList.title,
@@ -485,7 +490,8 @@ final class SyncManager {
                     items: [],
                     tags: [],
                     isStarred: cloudList.isStarred,
-                    userOrder: cloudList.userOrder
+                    userOrder: cloudList.userOrder,
+                    recurrenceRule: cloudList.recurrenceRule
                 )
                 newList.id = listID
                 newList.createdAt = cloudList.createdAt // Helper init might overwrite, so set explicitly
@@ -580,6 +586,7 @@ struct CloudSimpleChecklist: Codable, Identifiable {
     var isDone: Bool
     var isStarred: Bool
     var userOrder: Int
+    var recurrenceRule: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -591,6 +598,7 @@ struct CloudSimpleChecklist: Codable, Identifiable {
         case isDone = "is_done"
         case isStarred = "is_starred"
         case userOrder = "user_order"
+        case recurrenceRule = "recurrence_rule"
     }
 }
 
@@ -616,6 +624,7 @@ struct CloudMilestone: Codable, Identifiable {
     var isDone: Bool
     var isStarred: Bool
     var userOrder: Int
+    var recurrenceRule: String?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -628,6 +637,7 @@ struct CloudMilestone: Codable, Identifiable {
         case isDone = "is_done"
         case isStarred = "is_starred"
         case userOrder = "user_order"
+        case recurrenceRule = "recurrence_rule"
     }
 }
 

@@ -1,7 +1,5 @@
-//
 //  Checklist.swift
 //  W Reminder
-//
 
 import Foundation
 import SwiftData
@@ -12,9 +10,7 @@ final class ChecklistItem {
     var text: String
     var isDone: Bool = false
     var position: Int
-    
     var checklist: Checklist? // Inverse relationship
-
     init(text: String, isDone: Bool = false, position: Int = 0) {
         self.text = text
         self.isDone = isDone
@@ -41,7 +37,6 @@ final class Checklist {
     // Computed properties are not persisted but useful in views.
     
     @Relationship var tags: [Tag] = []
-
     init(
         title: String,
         notes: String? = nil,
@@ -78,7 +73,6 @@ final class SimpleChecklist {
     var isStarred: Bool = false
     var userOrder: Int = 0
     var recurrenceRule: String?
-    
     @Relationship var tags: [Tag] = []
 
     init(
@@ -102,5 +96,30 @@ final class SimpleChecklist {
         self.tags = tags
         self.userOrder = userOrder
         self.recurrenceRule = recurrenceRule
+    }
+}
+
+struct RecurrenceHelper {
+    static func description(for rule: String, date: Date) -> String {
+        switch rule {
+        case "daily":
+            return "Reminds every day"
+        case "weekly":
+            let formatter = DateFormatter()
+            formatter.dateFormat = "EEEE"
+            return "Reminds every \(formatter.string(from: date))"
+        case "monthly":
+            let calendar = Calendar.current
+            let day = calendar.component(.day, from: date)
+            return "Reminds every month on the \(ordinalString(from: day))"
+        default:
+            return ""
+        }
+    }
+    
+    private static func ordinalString(from number: Int) -> String {
+        let formatter = NumberFormatter()
+        formatter.numberStyle = .ordinal
+        return formatter.string(from: NSNumber(value: number)) ?? "\(number)th"
     }
 }
