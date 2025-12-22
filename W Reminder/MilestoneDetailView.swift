@@ -20,6 +20,9 @@ struct MilestoneDetailView: View {
     @State private var newTaskText: String = ""
     @FocusState private var isInputFocused: Bool
     
+    // Robustness
+    @State private var debouncedSaveTask: Task<Void, Never>? = nil
+    
     // XP Constants
     private let xpPerSubTask = 5
     private let xpCompletionBonus = 50
@@ -126,6 +129,37 @@ struct MilestoneDetailView: View {
             if isConfettiActive {
                GamificationOverlay()
                     .allowsHitTesting(false)
+                
+               // Completion Feedback
+               VStack(spacing: 12) {
+                   Image(systemName: "checkmark.seal.fill")
+                       .font(.system(size: 64))
+                       .foregroundStyle(theme.accent)
+                       .shadow(color: theme.accent.opacity(0.3), radius: 10)
+                       .symbolEffect(.bounce, value: isConfettiActive)
+                   
+                   Text("Milestone Completed!")
+                       .font(.title.bold())
+                       .foregroundStyle(.primary)
+                   
+                   if let rule = checklist.recurrenceRule, 
+                      let currentDue = checklist.dueDate,
+                      let nextDue = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
+                       Text("Next due: \(nextDue.formatted(date: .abbreviated, time: .omitted))")
+                           .font(.headline)
+                           .foregroundStyle(.secondary)
+                           .padding(.horizontal, 16)
+                           .padding(.vertical, 8)
+                           .background(.secondary.opacity(0.1))
+                           .clipShape(Capsule())
+                   }
+               }
+               .padding(30)
+               .background(.regularMaterial)
+               .clipShape(RoundedRectangle(cornerRadius: 24))
+               .shadow(color: .black.opacity(0.15), radius: 20, x: 0, y: 10)
+               .transition(.scale.combined(with: .opacity))
+               .zIndex(100)
             }
         }
         .navigationBarBackButtonHidden(true)
@@ -291,19 +325,27 @@ struct MilestoneDetailView: View {
         
         let position = checklist.items.count
         let newItem = ChecklistItem(text: newTaskText, isDone: false, position: position)
+        
+        // Explicitly insert into context first to ensure it's tracked
+        modelContext.insert(newItem)
         newItem.checklist = checklist
-        checklist.items.append(newItem)
+        
+        withAnimation {
+             checklist.items.append(newItem)
+        }
         
         newTaskText = ""
-        // Adding a task decreases progress, so if we were done, we might need to un-complete?
-        // If milestone was Done (100%), adding a task makes it 99% (Not Done).
-        // Robustness: Auto-uncheck milestone if new task added?
+        
         if checklist.isDone {
             checklist.isDone = false
             LevelManager.shared.addExp(-xpCompletionBonus)
         }
         
-        saveChanges()
+        // Immediate save for Creation to prevent "disappearing"
+        try? modelContext.save()
+        
+        // Sync silently
+        Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
     }
     
     private func deleteItem(_ item: ChecklistItem) {
@@ -346,44 +388,40 @@ struct MilestoneDetailView: View {
         // Auto-Demote: If we uncheck a task, the Milestone cannot be Done anymore.
         if !targetState && checklist.isDone {
             checklist.isDone = false
-            LevelManager.shared.addExp(-xpCompletionBonus) // Revoke bonus
-            // Haptic for demotion?
+            LevelManager.shared.addExp(-xpCompletionBonus)
         }
         
-        // 2. Transactional Save
-        do {
-            try modelContext.save()
+        // 2. XP Logic (Immediate for user feedback)
+        if targetState {
+            LevelManager.shared.addExp(xpPerSubTask)
+            let generator = UIImpactFeedbackGenerator(style: .light)
+            generator.impactOccurred()
+        } else {
+            LevelManager.shared.addExp(-xpPerSubTask)
+        }
+        
+        // 3. Debounced Save (Wait 1s of inactivity before hitting disk/sync)
+        debouncedSaveTask?.cancel()
+        debouncedSaveTask = Task {
+            try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s
             
-            // 3. XP Logic (Add or Deduct)
-            if targetState {
-                // Completed: Add XP
-                LevelManager.shared.addExp(xpPerSubTask)
-                // Haptic
-                let generator = UIImpactFeedbackGenerator(style: .light)
-                generator.impactOccurred()
-            } else {
-                // Unchecked: Deduct XP (Prevent farming)
-                LevelManager.shared.addExp(-xpPerSubTask)
+            await MainActor.run {
+                do {
+                    try modelContext.save()
+                    WidgetCenter.shared.reloadAllTimelines()
+                    Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+                    print("Debounced sub-task save complete.")
+                } catch {
+                    print("Failed to save item toggle: \(error)")
+                }
             }
-            
-            WidgetCenter.shared.reloadAllTimelines()
-             Task {
-                 await SyncManager.shared.sync(container: modelContext.container, silent: true)
-             }
-             
-        } catch {
-             // Rollback
-             withAnimation {
-                 item.isDone = !targetState
-             }
-             print("Failed to save item toggle: \(error)")
         }
     }
     
     // Toggles the entire Milestone and awards "Bonus XP"
     private func completeMilestone(_ isDone: Bool) {
         if isDone {
-             // 1. Start Celebration (Model NOT updated yet to prevent premature view pop)
+             // 1. Start Celebration
              isConfettiActive = true
              
              // Haptics
@@ -394,38 +432,33 @@ struct MilestoneDetailView: View {
              LevelManager.shared.addExp(xpCompletionBonus)
              StreakManager.shared.incrementStreak()
              
-             // 3. Delayed Persistence & Exit
+             // 3. Delayed Dismissal THEN Persistence
              DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                 // Handle Recurrence (Spawn Next Milestone)
-                 if let rule = checklist.recurrenceRule, !rule.isEmpty {
-                     handleRecurrence(rule: rule)
-                 }
-                 
-                 // NOW update the model
-                 checklist.isDone = true
-                 try? modelContext.save()
-                 WidgetCenter.shared.reloadAllTimelines()
-                 Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
-                 
+                 // Dismiss FIRST to avoid UI glitching where user sees the reset/new state
                  dismiss()
+                 
+                 // Perform data operations after view pop animation
+                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                     // Handle Recurrence (Spawn Next Milestone)
+                     if let rule = checklist.recurrenceRule, !rule.isEmpty {
+                         handleRecurrence(rule: rule)
+                     }
+                     
+                     // NOW update the model
+                     checklist.isDone = true
+                     try? modelContext.save()
+                     WidgetCenter.shared.reloadAllTimelines()
+                     Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+                 }
              }
         } else {
              // Mark Undone (Immediate)
              checklist.isDone = false
-             // If we mark undone, and it HAD a recurrence rule that we cleared... we can't restore it easily unless we stored it elsewhere.
-             // Limitation: "Resurrecting" a recurring milestone kills the recurrence chain if we already spawned the new one.
-             // But usually you mark undone to fix a mistake instantly.
-             // If we wait 2 seconds, we spawn the new one.
-             // If user marks undone *after* 2 seconds (from the archive list), the new one already exists.
-             // It's acceptable.
-             
              LevelManager.shared.addExp(-xpCompletionBonus)
              
              try? modelContext.save()
              WidgetCenter.shared.reloadAllTimelines()
              Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
-             
-             // No dismiss, let user edit
         }
     }
     

@@ -18,6 +18,10 @@ struct SimpleChecklistView: View {
     @State private var refreshID = UUID() // Force refresh TimelineView
     @State private var showStreakInfo = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true // Listen to setting
+    
+    // Batch Completion State
+    @State private var pendingCompletionIDs: Set<UUID> = []
+    @State private var batchCompletionTask: Task<Void, Never>? = nil
 
     enum SortOption: String, CaseIterable {
         case manual
@@ -167,7 +171,7 @@ struct SimpleChecklistView: View {
                     VStack(spacing: 0) {
                         TimelineView(.everyMinute) { context in
                             let _ = context.date // Force view update on timeline changes
-                            let active = checklists.filter { !$0.isDone }
+                            let active = checklists.filter { !$0.isDone || pendingCompletionIDs.contains($0.id) }
                             let filteredActive = active.filter {
                                 guard let filterTag else { return true }
                                 return $0.tags.contains(where: { $0.id == filterTag.id })
@@ -344,71 +348,53 @@ struct SimpleChecklistView: View {
                 SimpleChecklistRow(
                     checklist: checklist,
                     theme: theme,
+                    isPendingCompletion: pendingCompletionIDs.contains(checklist.id),
                     onToggleDone: {
                         print("Tap Done: item=\(checklist.title)")
-                        let targetState = !checklist.isDone
+                        let isCurrentlyDone = checklist.isDone
+                        let isPending = pendingCompletionIDs.contains(checklist.id)
                         
-                        // 1. Idempotency Check
-                        if checklist.isDone == targetState {
-                             print("Done ignored: already \(targetState) -> no XP")
-                             return
-                        }
-                        
-                        // 2. Set State
-                        withAnimation(.easeInOut) {
-                            checklist.isDone = targetState
-                        }
-                        NotificationManager.shared.cancelNotification(for: checklist)
-                        
-                        // 3. Immediate Save Transaction
-                        print("Saving SwiftData: item=\(checklist.title) isDone=\(targetState)")
-                        do {
-                            try modelContext.save()
-                            print("Save OK: item=\(checklist.title) persisted")
+                        // If checking (Mark Done)
+                        if !isCurrentlyDone && !isPending {
+                            // 1. Add to Pending (Visually Checked)
+                            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
+                                _ = pendingCompletionIDs.insert(checklist.id)
+                            }
+                            // Haptic
+                            if isHapticsEnabled {
+                                let generator = UIImpactFeedbackGenerator(style: .medium)
+                                generator.impactOccurred()
+                            }
                             
-                            // 4. Rewards (Only if saved successfully as Done)
-                            if targetState { // isDone == true
-                                // Haptic
-                                if isHapticsEnabled {
-                                    let generator = UIImpactFeedbackGenerator(style: .medium)
-                                    generator.impactOccurred()
-                                }
+                            // 2. Schedule Batch Commit
+                            batchCompletionTask?.cancel()
+                            batchCompletionTask = Task {
+                                // Wait for user to stop clicking
+                                try? await Task.sleep(nanoseconds: 1_200_000_000) // 1.2s
+                                guard !Task.isCancelled else { return }
                                 
-                                StreakManager.shared.incrementStreak()
-                                print("XP granted: +10 itemId=\(checklist.title)")
-                                
-                                // Handle Recurrence (Loop)
-                                if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
-                                    if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
-                                        let newItem = SimpleChecklist(
-                                            title: checklist.title,
-                                            notes: checklist.notes,
-                                            dueDate: nextDate,
-                                            remind: checklist.remind,
-                                            isDone: false,
-                                            tags: checklist.tags,
-                                            isStarred: checklist.isStarred,
-                                            userOrder: checklist.userOrder,
-                                            recurrenceRule: rule
-                                        )
-                                        modelContext.insert(newItem)
-                                        try? modelContext.save()
-                                    }
-                                }
+                                await commitPendingCompletions()
                             }
-                        } catch {
-                            print("Save FAILED: item=\(checklist.title) rollback error=\(error)")
-                            // Rollback
-                            withAnimation {
-                                checklist.isDone = !targetState
-                            }
-                            return
-                        }
-                        
-                        // Auto-sync on Toggle Done
-                        WidgetCenter.shared.reloadAllTimelines()
-                        Task {
-                            await SyncManager.shared.sync(container: modelContext.container, silent: true)
+                        } 
+                        // If Unchecking (Mark Undone) Or Unchecking a Pending Item
+                        else if isCurrentlyDone || isPending {
+                             // Correct Mistake Immediately
+                             if isPending {
+                                 // Just remove from pending, no DB write needed yet
+                                 withAnimation {
+                                     _ = pendingCompletionIDs.remove(checklist.id)
+                                 }
+                                 // If this was the last pending, cancel commit?
+                                 if pendingCompletionIDs.isEmpty {
+                                     batchCompletionTask?.cancel()
+                                 }
+                             } else {
+                                 // Was actually written to DB, undo it
+                                 checklist.isDone = false
+                                 try? modelContext.save()
+                                 WidgetCenter.shared.reloadAllTimelines()
+                                 Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+                             }
                         }
                     },
                     onEdit: {
@@ -455,6 +441,63 @@ struct SimpleChecklistView: View {
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
         .id(refreshID) // Force view refresh when refreshID changes
+    }
+
+    private func commitPendingCompletions() async {
+        guard !pendingCompletionIDs.isEmpty else { return }
+        
+        let idsToCommit = pendingCompletionIDs
+        
+        print("Committing \(idsToCommit.count) items...")
+        
+        await MainActor.run {
+            var tasksCompleted = 0
+            
+            for id in idsToCommit {
+                if let checklist = checklists.first(where: { $0.id == id }) {
+                    // Safety check if already done
+                    if !checklist.isDone {
+                        checklist.isDone = true
+                        tasksCompleted += 1
+                        
+                        // Recurrence logic here
+                        if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
+                             if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
+                                 let newItem = SimpleChecklist(
+                                     title: checklist.title,
+                                     notes: checklist.notes,
+                                     dueDate: nextDate,
+                                     remind: checklist.remind,
+                                     isDone: false,
+                                     tags: checklist.tags,
+                                     isStarred: checklist.isStarred,
+                                     userOrder: checklist.userOrder,
+                                     recurrenceRule: rule
+                                 )
+                                 modelContext.insert(newItem)
+                             }
+                        }
+                    }
+                }
+            }
+            
+            // Grant XP for Batch (Manual LevelManager call if StreakManager doesn't handle XP)
+            // Assuming StreakManager handles XP on increment?
+            // Let's just increment Streak for each.
+            for _ in 0..<tasksCompleted {
+                StreakManager.shared.incrementStreak()
+            }
+            
+            // Save & Sync ONCE
+            try? modelContext.save()
+            WidgetCenter.shared.reloadAllTimelines()
+            Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+            
+            // Clear IDs
+            withAnimation {
+                pendingCompletionIDs.removeAll()
+            }
+        }
     }
 
     private func moveChecklists(from source: IndexSet, to destination: Int, active: [SimpleChecklist]) {
@@ -891,60 +934,34 @@ struct AddSimpleChecklistView: View {
 struct SimpleChecklistRow: View {
     let checklist: SimpleChecklist
     let theme: Theme
+    var isPendingCompletion: Bool // New Prop
     var onToggleDone: () -> Void
     var onEdit: () -> Void = {}
     
-    @State private var isMarkingDone = false
-    @State private var completionTask: Task<Void, Error>? = nil
-    @Environment(\.scenePhase) private var scenePhase
+    // Removed local state to allow Parent-driven "Batch" logic
 
     var body: some View {
         HStack(spacing: 12) {
-            // Checkbox Button with Animation
+            // Checkbox Button
             Button {
-                guard !isMarkingDone else { return }
-                
-                if !checklist.isDone {
-                     // Check with delay
-                     withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) {
-                         isMarkingDone = true
-                     }
-                     // Haptic
-                     let generator = UIImpactFeedbackGenerator(style: .medium)
-                     generator.impactOccurred()
-                     
-                     // Delay
-                     completionTask = Task {
-                         try? await Task.sleep(nanoseconds: 600_000_000) // 0.6s
-                         
-                         if Task.isCancelled { return }
-                         
-                         await MainActor.run {
-                             onToggleDone()
-                             isMarkingDone = false
-                         }
-                     }
-                } else {
-                     // Uncheck - immediate
-                     onToggleDone()
-                }
+                onToggleDone()
             } label: {
-                Image(systemName: (checklist.isDone || isMarkingDone) ? "checkmark.circle.fill" : "circle")
+                Image(systemName: (checklist.isDone || isPendingCompletion) ? "checkmark.circle.fill" : "circle")
                     .font(.title2)
-                    .foregroundStyle((checklist.isDone || isMarkingDone) ? theme.accent : .gray)
+                    .foregroundStyle((checklist.isDone || isPendingCompletion) ? theme.accent : .gray)
                     .contentTransition(.symbolEffect(.replace))
-                    .symbolEffect(.bounce, value: isMarkingDone)
+                    .symbolEffect(.bounce, value: isPendingCompletion)
             }
             .buttonStyle(.plain)
-            .disabled(isMarkingDone) // Prevent spamming
+            .disabled(isPendingCompletion) // Prevent double-taps while pending
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
                     Text(checklist.title)
                         .font(.headline)
-                        .foregroundStyle((checklist.isDone || isMarkingDone) ? .secondary : theme.primary)
-                        .strikethrough((checklist.isDone || isMarkingDone), color: .secondary)
-                        .animation(.default, value: isMarkingDone)
+                        .foregroundStyle((checklist.isDone || isPendingCompletion) ? .secondary : theme.primary)
+                        .strikethrough((checklist.isDone || isPendingCompletion), color: .secondary)
+                        .animation(.default, value: isPendingCompletion)
                     
                     // Multi-Tag Display
                     HStack(spacing: 4) {
@@ -1038,28 +1055,6 @@ struct SimpleChecklistRow: View {
                 onToggleDone()
             } label: {
                 Label(checklist.isDone ? "Mark Undone" : "Mark Done", systemImage: checklist.isDone ? "circle" : "checkmark.circle")
-            }
-        }
-        .onChange(of: scenePhase) { old, new in
-            if new == .inactive || new == .background {
-                if isMarkingDone {
-                    // Cancel delayed task to avoid double-toggle
-                    completionTask?.cancel()
-                    completionTask = nil
-                    
-                    // Force complete immediately
-                    onToggleDone()
-                    isMarkingDone = false
-                }
-            }
-        }
-        .onDisappear {
-            if isMarkingDone {
-               completionTask?.cancel()
-               completionTask = nil
-               
-               onToggleDone()
-               isMarkingDone = false
             }
         }
     }

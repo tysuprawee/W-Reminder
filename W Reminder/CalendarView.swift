@@ -249,6 +249,7 @@ struct CalendarView: View {
                             SimpleChecklistRow(
                                 checklist: checklist,
                                 theme: theme,
+                                isPendingCompletion: false,
                                 onToggleDone: {
                                     withAnimation(.easeInOut) {
                                         checklist.isDone.toggle()
