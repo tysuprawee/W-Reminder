@@ -266,7 +266,7 @@ struct Achievement: Identifiable {
         Achievement(id: "streak_60", title: "Two Months", description: "Reach a 60-day streak", icon: "calendar.circle.fill"),
         Achievement(id: "streak_75", title: "Diamond", description: "Reach a 75-day streak", icon: "suit.diamond.fill"),
         Achievement(id: "streak_90", title: "Quarterly", description: "Reach a 90-day streak", icon: "chart.pie.fill"),
-        Achievement(id: "streak_100", title: "Century Streak", description: "Reach a 100-day streak", icon: "100.circle.fill"),
+        Achievement(id: "streak_100", title: "Century Streak", description: "Reach a 100-day streak", icon: "crown.fill"),
 
         // MARK: LEVELS
         Achievement(id: "level_2", title: "Novice", description: "Reach Level 2", icon: "leaf"),
@@ -278,8 +278,8 @@ struct Achievement: Identifiable {
         Achievement(id: "level_25", title: "Professional", description: "Reach Level 25", icon: "briefcase.fill"),
         Achievement(id: "level_30", title: "Master", description: "Reach Level 30", icon: "graduationcap.fill"),
         Achievement(id: "level_35", title: "Elite", description: "Reach Level 35", icon: "medal.fill"),
-        Achievement(id: "level_40", title: "Grandmaster", description: "Reach Level 40", icon: "trophy.circle.fill"),
-        Achievement(id: "level_45", title: "Hero", description: "Reach Level 45", icon: "shield.star.fill"),
-        Achievement(id: "level_50", title: "Immortal", description: "Reach Level 50", icon: "infinity.circle.fill"),
+        Achievement(id: "level_40", title: "Grandmaster", description: "Reach Level 40", icon: "trophy.fill"),
+        Achievement(id: "level_45", title: "Hero", description: "Reach Level 45", icon: "shield.fill"),
+        Achievement(id: "level_50", title: "Immortal", description: "Reach Level 50", icon: "infinity"),
     ]
 }

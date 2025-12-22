@@ -24,6 +24,7 @@ struct MilestoneView: View {
     @State private var showOnlyStarred = false
     @State private var refreshID = UUID() // Force refresh TimelineView
     @State private var showStreakInfo = false
+    @State private var showingPremium = false // Premium Sheet State
 
     enum SortOption: Identifiable, CaseIterable {
         case manual
@@ -260,6 +261,9 @@ struct MilestoneView: View {
                         recurrenceRule: recurrenceRule
                     )
                 }
+            }
+            .sheet(isPresented: $showingPremium) {
+                PremiumUpgradeView(theme: theme)
             }
             .alert("Notifications are off", isPresented: $showPermissionAlert) {
                 Button("Allow Now") {

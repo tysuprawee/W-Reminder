@@ -11,6 +11,7 @@ struct ProfilePopupView: View {
     let theme: Theme
     @State private var levelManager = LevelManager.shared
     @State private var streakManager = StreakManager.shared
+    @State private var showingPremium = false
     
     var body: some View {
         ScrollView {
@@ -32,12 +33,11 @@ struct ProfilePopupView: View {
                         .font(.title2.bold())
                     
                     Text("Top Earner")
-                        .font(.caption)
-                        .foregroundStyle(.secondary)
+                        .font(.caption.bold())
+                        .foregroundStyle(.orange)
                         .padding(.horizontal, 12)
                         .padding(.vertical, 4)
                         .background(Capsule().fill(Color.yellow.opacity(0.2)))
-                        .foregroundStyle(.yellow)
                 }
                 
                 // EXP Bar
@@ -106,6 +106,42 @@ struct ProfilePopupView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 
+                // Premium Banner
+                Button {
+                    showingPremium = true
+                } label: {
+                    HStack {
+                        Image(systemName: "crown.fill")
+                            .font(.title2)
+                            .foregroundStyle(.yellow)
+                        
+                        VStack(alignment: .leading, spacing: 4) {
+                            Text("W Reminder Pro")
+                                .font(.headline.bold())
+                                .foregroundStyle(.white)
+                            Text("Unlock Insights, Icons & More")
+                                .font(.caption)
+                                .foregroundStyle(.white.opacity(0.9))
+                        }
+                        .padding(.leading, 4)
+                        
+                        Spacer()
+                        
+                        Text("Upgrade")
+                            .font(.caption.bold())
+                            .foregroundStyle(.orange)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(Capsule().fill(.white))
+                    }
+                    .padding()
+                    .background(
+                        LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
+                    )
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
+                }
+                
                 // Achievements List
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Achievements")
@@ -150,5 +186,8 @@ struct ProfilePopupView: View {
             .padding()
         }
         .background(theme.background) // Ensure background consistent
+        .sheet(isPresented: $showingPremium) {
+            PremiumUpgradeView(theme: theme)
+        }
     }
 }
