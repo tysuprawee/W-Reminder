@@ -1007,7 +1007,7 @@ struct SimpleChecklistRow: View {
                             .font(.caption)
                         Text(timeRemaining(until: dueDate))
                             .font(.caption)
-                            .accessibilityIdentifier("timeRemainingLabel")
+                            .accessibilityIdentifier("timeRemainingLabel_\(checklist.title)")
                     }
                     .foregroundStyle(deadlineColor(for: dueDate))
                 }
@@ -1022,6 +1022,7 @@ struct SimpleChecklistRow: View {
             }
             .buttonStyle(.plain)
         }
+        .accessibilityIdentifier("checklistRow_\(checklist.title)")
         .padding()
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)

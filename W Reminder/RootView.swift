@@ -118,7 +118,7 @@ struct RootView: View {
                     Label("Records", systemImage: "tray.full")
                 }
 
-            SettingsView(selectedThemeId: $selectedThemeId, notificationStatus: $notificationStatus, notificationSound: $notificationSound, theme: theme)
+            SettingsView(selectedThemeId: $selectedThemeId, notificationStatus: $notificationStatus, notificationSound: $notificationSound, hasSeenWelcome: $hasSeenWelcome, theme: theme)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
@@ -231,6 +231,7 @@ struct SettingsView: View {
     @Binding var selectedThemeId: String
     @Binding var notificationStatus: UNAuthorizationStatus
     @Binding var notificationSound: NotificationSound
+    @Binding var hasSeenWelcome: Bool
 
     let theme: Theme
     
@@ -260,14 +261,29 @@ struct SettingsView: View {
                             Spacer()
                             Button("Sign Out", role: .destructive) {
                                 Task {
-                                    // 1. Sync one last time (Backup)
+                                    // 1. Sync one last time (Backup) - attempt but don't block forever
+                                    // In a real app we might want a timeout here
                                     await SyncManager.shared.sync(container: modelContext.container)
+                                    
                                     // 2. Wipe local data (Clean Slate)
-                                    try? SyncManager.shared.deleteLocalData(context: modelContext)
+                                    do {
+                                        try SyncManager.shared.deleteLocalData(context: modelContext)
+                                    } catch {
+                                        print("Error deleting local data: \(error)")
+                                    }
+                                    
                                     LevelManager.shared.resetLocalData()
                                     StreakManager.shared.resetLocalData()
+                                    
                                     // 3. Sign Out
                                     await authManager.signOut()
+                                    
+                                    // 4. Reset Welcome State
+                                    await MainActor.run {
+                                        withAnimation {
+                                            hasSeenWelcome = false
+                                        }
+                                    }
                                 }
                             }
                             .buttonStyle(.bordered)

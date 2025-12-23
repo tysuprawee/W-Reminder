@@ -21,101 +21,151 @@ struct LoginView: View {
     
     var body: some View {
         NavigationStack {
-            VStack(spacing: 24) {
-                Spacer()
+            ZStack {
+                // Background
+                Color(UIColor.systemBackground)
+                    .ignoresSafeArea()
                 
-                // Header
-                ZStack(alignment: .topLeading) {
-                    VStack(spacing: 12) {
-                        Image(systemName: "checklist")
-                            .font(.system(size: 64))
-                            .foregroundStyle(.tint)
-                        
-                        Text("Welcome to\nW Reminder")
-                            .font(.largeTitle.bold())
-                            .multilineTextAlignment(.center)
-                    }
-                    .frame(maxWidth: .infinity)
-                    
-                    Button("Cancel") {
-                        dismiss()
-                    }
-                    .buttonStyle(.plain)
-                    .foregroundStyle(.secondary)
-                    .padding(.leading)
-                }
-                .padding(.bottom, 32)
-                
-                // Form
-                VStack(spacing: 16) {
-                    TextField("Email", text: $email)
-                        .textContentType(.emailAddress)
-                        .textInputAutocapitalization(.never)
-                        .textFieldStyle(.roundedBorder)
-                        .controlSize(.large)
-                    
-                    SecureField("Password", text: $password)
-                        .textContentType(isSignUp ? .newPassword : .password)
-                        .textFieldStyle(.roundedBorder)
-                        .controlSize(.large)
-                }
-                .padding(.horizontal)
-                
-                // Action Buttons
-                VStack(spacing: 16) {
-                    if authManager.isLoading {
-                        ProgressView()
-                    } else {
-                        Button {
-                            handleAuth()
-                        } label: {
-                            Text(isSignUp ? "Sign Up" : "Sign In")
-                                .font(.headline)
-                                .foregroundStyle(.white)
-                                .frame(maxWidth: .infinity)
-                                .frame(height: 50)
-                                .background(Color.accentColor)
-                                .clipShape(RoundedRectangle(cornerRadius: 12))
+                VStack(spacing: 0) {
+                    // Custom Nav Bar
+                    HStack {
+                        Button("Cancel") {
+                            dismiss()
                         }
-                        
-                        // Google Sign In
-                        Button {
-                            handleGoogleSignIn()
-                        } label: {
-                            HStack {
-                                Image(systemName: "globe") // Placeholder for Google Icon
-                                Text("Sign in with Google")
-                            }
-                            .font(.headline)
-                            .foregroundStyle(.primary)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 50)
-                            .background(Material.regular)
-                            .clipShape(RoundedRectangle(cornerRadius: 12))
-                            .overlay(
-                                RoundedRectangle(cornerRadius: 12)
-                                    .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
-                            )
-                        }
-                    }
-                }
-                .padding(.horizontal)
-                
-                Spacer()
-                
-                // Toggle Mode
-                Button {
-                    withAnimation {
-                        isSignUp.toggle()
-                    }
-                } label: {
-                    Text(isSignUp ? "Already have an account? Sign In" : "Don't have an account? Sign Up")
-                        .font(.subheadline)
                         .foregroundStyle(.secondary)
+                        Spacer()
+                    }
+                    .padding()
+                    
+                    ScrollView {
+                        VStack(spacing: 32) {
+                            // Dynamic Header
+                            VStack(spacing: 12) {
+                                Image("Wreminder") // Use the new app logo
+                                    .resizable()
+                                    .scaledToFit()
+                                    .frame(width: 80, height: 80)
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .shadow(radius: 5)
+                                
+                                Text(isSignUp ? "Create Account" : "Welcome Back")
+                                    .font(.system(size: 32, weight: .bold))
+                                    .multilineTextAlignment(.center)
+                                    .transition(.opacity.combined(with: .move(edge: .bottom)))
+                                
+                                Text(isSignUp ? "Join us to sync your tasks across devices" : "Sign in to continue where you left off")
+                                    .font(.subheadline)
+                                    .foregroundStyle(.secondary)
+                                    .multilineTextAlignment(.center)
+                            }
+                            .padding(.vertical, 20)
+                            
+                            // Form Fields
+                            VStack(spacing: 20) {
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Email Address")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.leading, 4)
+                                    
+                                    TextField("name@example.com", text: $email)
+                                        .textContentType(.emailAddress)
+                                        .keyboardType(.emailAddress)
+                                        .textInputAutocapitalization(.never)
+                                        .padding()
+                                        .background(Color(UIColor.secondarySystemBackground))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                        )
+                                }
+                                
+                                VStack(alignment: .leading, spacing: 8) {
+                                    Text("Password")
+                                        .font(.caption)
+                                        .foregroundStyle(.secondary)
+                                        .padding(.leading, 4)
+                                    
+                                    SecureField("Password", text: $password)
+                                        .textContentType(isSignUp ? .newPassword : .password)
+                                        .padding()
+                                        .background(Color(UIColor.secondarySystemBackground))
+                                        .cornerRadius(12)
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.secondary.opacity(0.1), lineWidth: 1)
+                                        )
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            // Action Buttons
+                            VStack(spacing: 16) {
+                                if authManager.isLoading {
+                                    ProgressView()
+                                        .frame(height: 50)
+                                } else {
+                                    Button {
+                                        handleAuth()
+                                    } label: {
+                                        Text(isSignUp ? "Sign Up" : "Sign In")
+                                            .font(.headline)
+                                            .foregroundStyle(.white)
+                                            .frame(maxWidth: .infinity)
+                                            .frame(height: 50)
+                                            .background(Color.accentColor)
+                                            .clipShape(RoundedRectangle(cornerRadius: 12))
+                                            .shadow(color: Color.accentColor.opacity(0.3), radius: 5, y: 3)
+                                    }
+                                    
+                                    // Google Sign In
+                                    Button {
+                                        handleGoogleSignIn()
+                                    } label: {
+                                        HStack(spacing: 12) {
+                                            Image("google")
+                                                .resizable()
+                                                .scaledToFit()
+                                                .frame(width: 24, height: 24)
+                                            
+                                            Text("Sign in with Google")
+                                        }
+                                        .font(.headline)
+                                        .foregroundStyle(.primary)
+                                        .frame(maxWidth: .infinity)
+                                        .frame(height: 50)
+                                        .background(Color(UIColor.secondarySystemBackground))
+                                        .clipShape(RoundedRectangle(cornerRadius: 12))
+                                        .overlay(
+                                            RoundedRectangle(cornerRadius: 12)
+                                                .stroke(Color.secondary.opacity(0.2), lineWidth: 1)
+                                        )
+                                    }
+                                }
+                            }
+                            .padding(.horizontal)
+                            
+                            // Toggle Mode
+                            Button {
+                                withAnimation(.spring(response: 0.5, dampingFraction: 0.7)) {
+                                    isSignUp.toggle()
+                                }
+                            } label: {
+                                HStack {
+                                    Text(isSignUp ? "Already have an account?" : "Don't have an account?")
+                                        .foregroundStyle(.secondary)
+                                    Text(isSignUp ? "Sign In" : "Sign Up")
+                                        .bold()
+                                        .foregroundStyle(Color.accentColor)
+                                }
+                                .font(.subheadline)
+                            }
+                            .padding(.bottom)
+                        }
+                    }
                 }
-                .padding(.bottom)
             }
-            .padding()
             .alert("Error", isPresented: Binding<Bool>(
                 get: { authManager.errorMessage != nil },
                 set: { _ in authManager.errorMessage = nil }
@@ -150,8 +200,6 @@ struct LoginView: View {
                             dismiss()
                         } catch {
                             print("Error clearing local data: \(error)")
-                            // If delete fails, we probably shouldn't leave them in a broken state.
-                            // But for now, let's assume it works or they can try again.
                             dismiss()
                         }
                     }
@@ -169,14 +217,11 @@ struct LoginView: View {
         }
     }
     
-
-    
     private func handleAuth() {
         Task {
             do {
                 if isSignUp {
                     try await authManager.signUp(email: email, password: password)
-                    // Success is now handled by AuthManager.successMessage observing
                     isSignUp = false
                 } else {
                     try await authManager.signIn(email: email, password: password)
@@ -222,7 +267,6 @@ struct LoginView: View {
         }
     }
     
-    // Add Google Sign In wrapper to handle merge check too
     private func handleGoogleSignIn() {
         Task {
             do {
@@ -236,6 +280,8 @@ struct LoginView: View {
         }
     }
 }
+
+
 
 #Preview {
     LoginView()

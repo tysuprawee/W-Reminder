@@ -9,6 +9,7 @@ import SwiftUI
 import StoreKit
 
 struct StreakCelebrationView: View {
+    @Environment(\.requestReview) private var requestReview
     @State private var animateIcon = false
     @State private var animateText = false
     @State private var rotation = 0.0
@@ -85,9 +86,7 @@ struct StreakCelebrationView: View {
                     // Trigger Rating Prompt on 4-day streak
                     if streakCount == 4 {
                         DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
-                                SKStoreReviewController.requestReview(in: scene)
-                            }
+                            requestReview()
                         }
                     }
                 } label: {

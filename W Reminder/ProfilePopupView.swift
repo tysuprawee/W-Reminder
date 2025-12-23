@@ -147,7 +147,7 @@ struct ProfilePopupView: View {
                          }
                     }
                     .padding()
-                    .background(Color.white.opacity(0.5))
+                    .background(theme.isDark ? Color.black.opacity(0.2) : Color.white.opacity(0.5))
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .overlay(
                         RoundedRectangle(cornerRadius: 20)

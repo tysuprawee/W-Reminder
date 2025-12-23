@@ -435,6 +435,7 @@ struct MilestoneView: View {
                     }
                     .tint(theme.accent)
                 }
+                .accessibilityIdentifier("checklistRow_\(checklist.title)")
             }
             .onDelete { offsets in
                 deleteChecklists(offsets: offsets, in: active)
@@ -1067,7 +1068,7 @@ struct ChecklistRow: View {
                             .font(.caption)
                         Text(timeRemaining(until: dueDate))
                             .font(.caption)
-                            .accessibilityIdentifier("timeRemainingLabel")
+                            .accessibilityIdentifier("timeRemainingLabel_\(checklist.title)")
                     }
                     .foregroundStyle(deadlineColor(for: dueDate))
                 }
