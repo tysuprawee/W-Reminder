@@ -184,20 +184,20 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     
     @MainActor
     private func handleCompletion(id: UUID, type: String) {
-        // Use a ModelContext to mark item as done.
-        // We need to access the shared container.
-        guard let container = try? ModelContainer(for: SimpleChecklist.self, Checklist.self, Tag.self, DeletedRecord.self) else { return }
-        let context = ModelContext(container)
+        // Use the SharedPersistence container to ensure we access the correct App Group database
+        let container = SharedPersistence.shared.container
+        let context = container.mainContext // Use mainContext as this is MainActor
         
         Task {
             do {
-                print("Notification: Creating context for completion...")
-                // Since this runs in a fresh context, we fetch by ID
+                print("Notification: Processing completion for \(type)...")
+                
                 if type == "simple" {
                     var descriptor = FetchDescriptor<SimpleChecklist>(predicate: #Predicate { $0.id == id })
                     descriptor.fetchLimit = 1
                     if let item = try context.fetch(descriptor).first {
                         item.isDone = true
+                        item.completedAt = Date()
                         
                         // Handle Recurrence
                         if let rule = item.recurrenceRule, let currentDue = item.dueDate {
@@ -218,9 +218,8 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                         }
                         try context.save()
                         print("Notification: Simple Checklist \(item.title) marked done.")
-                        // Streak Update
+                        
                         StreakManager.shared.incrementStreak()
-                        // Sync
                         await SyncManager.shared.sync(container: container)
                     }
                 } else if type == "milestone" {
@@ -228,11 +227,14 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
                     descriptor.fetchLimit = 1
                     if let item = try context.fetch(descriptor).first {
                         item.isDone = true
+                        item.completedAt = Date()
+                        
+                        // Recurrence explicitly disabled for Milestones per user design.
+                        
                         try context.save()
                         print("Notification: Milestone \(item.title) marked done.")
-                        // Streak Update
+                        
                         StreakManager.shared.incrementStreak()
-                        // Sync
                         await SyncManager.shared.sync(container: container)
                     }
                 }

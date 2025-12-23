@@ -6,6 +6,7 @@
 //
 
 import SwiftUI
+import StoreKit
 
 struct StreakCelebrationView: View {
     @State private var animateIcon = false
@@ -73,6 +74,35 @@ struct StreakCelebrationView: View {
                         .font(.subheadline)
                         .foregroundStyle(.white.opacity(0.9))
                 }
+                .offset(y: animateText ? 0 : 20)
+                .opacity(animateText ? 1 : 0)
+                
+                Button {
+                    withAnimation {
+                        StreakManager.shared.showCelebration = false
+                    }
+                    
+                    // Trigger Rating Prompt on 4-day streak
+                    if streakCount == 4 {
+                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                            if let scene = UIApplication.shared.connectedScenes.first(where: { $0.activationState == .foregroundActive }) as? UIWindowScene {
+                                SKStoreReviewController.requestReview(in: scene)
+                            }
+                        }
+                    }
+                } label: {
+                    Text("Continue")
+                        .font(.headline.bold())
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding()
+                        .background(
+                            LinearGradient(colors: [.orange, .red], startPoint: .leading, endPoint: .trailing)
+                        )
+                        .clipShape(Capsule())
+                        .shadow(color: .orange.opacity(0.4), radius: 10, y: 5)
+                }
+                .padding(.top, 10)
                 .offset(y: animateText ? 0 : 20)
                 .opacity(animateText ? 1 : 0)
             }

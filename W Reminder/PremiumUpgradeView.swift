@@ -10,7 +10,6 @@ class StoreManager: ObservableObject {
         // Mock purchase
         withAnimation {
             isPro = true
-        }
     }
     
     func restorePurchases() {

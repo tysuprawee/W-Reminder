@@ -140,6 +140,12 @@ struct LoginView: View {
                         do {
                             // strictly enforce cloud state
                             try SyncManager.shared.deleteLocalData(context: modelContext)
+                            LevelManager.shared.resetLocalData()
+                            StreakManager.shared.resetLocalData()
+                            
+                            // Re-fetch profile to apply Cloud State (Fresh start)
+                            await authManager.fetchProfile()
+                            
                             await SyncManager.shared.sync(container: modelContext.container)
                             dismiss()
                         } catch {
@@ -158,7 +164,7 @@ struct LoginView: View {
                     }
                 }
             } message: {
-                Text("Logging in will delete all local guest data. This action cannot be undone.")
+                Text("Logging in will delete all local guest data (Tasks, Streak, XP). This action cannot be undone.")
             }
         }
     }
@@ -200,7 +206,9 @@ struct LoginView: View {
         }
 
         do {
-            if try SyncManager.shared.hasLocalData(context: modelContext) {
+            let hasGamification = LevelManager.shared.currentLevel > 1 || StreakManager.shared.currentStreak > 0
+            
+            if try SyncManager.shared.hasLocalData(context: modelContext) || hasGamification {
                 // Ask user what to do
                 showingMergeAlert = true
             } else {

@@ -106,6 +106,12 @@ final class AuthManager {
         // Reset preferences to default
         UserDefaults.standard.removeObject(forKey: "selectedThemeId")
         UserDefaults.standard.removeObject(forKey: "notificationSound")
+        
+        // Reset Gamification
+        await MainActor.run {
+            LevelManager.shared.resetLocalData()
+            StreakManager.shared.resetLocalData()
+        }
     }
     
     // MARK: - Profile

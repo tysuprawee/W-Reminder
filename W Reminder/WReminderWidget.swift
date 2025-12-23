@@ -25,6 +25,7 @@ struct Provider: TimelineProvider {
         let currentDate = Date()
         let entry = SimpleEntry(date: currentDate)
         
+        // Polling backup
         let nextUpdateDate = Calendar.current.date(byAdding: .minute, value: 15, to: currentDate)!
         let timeline = Timeline(entries: [entry], policy: .after(nextUpdateDate))
         completion(timeline)
@@ -38,11 +39,11 @@ struct SimpleEntry: TimelineEntry {
 struct WReminderWidgetEntryView : View {
     var entry: Provider.Entry
     
-    // Query items due today or overdue, not done
-    @Query(sort: \SimpleChecklist.dueDate, order: .forward) 
+    // Only fetch incomplete tasks for the widget to keep it clean
+    @Query(filter: #Predicate<SimpleChecklist> { !$0.isDone }, sort: \SimpleChecklist.dueDate, order: .forward)
     var simpleChecklists: [SimpleChecklist]
     
-    @Query(sort: \Checklist.dueDate, order: .forward) 
+    @Query(filter: #Predicate<Checklist> { !$0.isDone }, sort: \Checklist.dueDate, order: .forward)
     var milestones: [Checklist]
 
     @Environment(\.widgetFamily) var family
@@ -73,10 +74,6 @@ struct SmallWidgetView: View {
     let milestones: [Checklist]
     let theme: Theme
     
-    var progress: Double {
-        return 0.75 // Placeholder
-    }
-    
     var currentStreak: Int {
         let defaults = UserDefaults(suiteName: SharedPersistence.appGroupIdentifier)
         return defaults?.integer(forKey: "userStreakCount") ?? 0
@@ -91,7 +88,7 @@ struct SmallWidgetView: View {
                     
                 // Gradient Ring (Active)
                 Circle()
-                    .trim(from: 0, to: 0.75)
+                    .trim(from: 0, to: 0.75) // Static visual for "Orbit"
                     .stroke(
                         AngularGradient(
                             colors: [theme.accent, theme.primary],
@@ -130,8 +127,8 @@ struct MediumWidgetView: View {
     let theme: Theme
     
     var combinedTasks: [AnyTask] {
-        let s = simples.filter { !$0.isDone }.map { AnyTask(title: $0.title, dueDate: $0.dueDate, isMilestone: false) }
-        let m = milestones.filter { !$0.isDone }.map { AnyTask(title: $0.title, dueDate: $0.dueDate, isMilestone: true) }
+        let s = simples.map { AnyTask(id: $0.id, title: $0.title, dueDate: $0.dueDate, isMilestone: false) }
+        let m = milestones.map { AnyTask(id: $0.id, title: $0.title, dueDate: $0.dueDate, isMilestone: true) }
         
         return (s + m).sorted { a, b in
             guard let da = a.dueDate else { return false }
@@ -141,7 +138,7 @@ struct MediumWidgetView: View {
     }
     
     struct AnyTask: Identifiable {
-        let id = UUID()
+        let id: UUID
         let title: String
         let dueDate: Date?
         let isMilestone: Bool
@@ -161,27 +158,39 @@ struct MediumWidgetView: View {
             Divider().background(theme.secondary)
             
             if combinedTasks.isEmpty {
-                Text("All clear! 🎉")
-                    .foregroundStyle(theme.secondary)
-                    .frame(maxWidth: .infinity, alignment: .center)
+                VStack {
+                    Spacer()
+                    Text("All clear! 🎉")
+                        .foregroundStyle(theme.secondary)
+                        .frame(maxWidth: .infinity, alignment: .center)
+                    Spacer()
+                }
             } else {
-                ForEach(combinedTasks) { task in
-                    HStack {
-                        Image(systemName: task.isMilestone ? "flag.fill" : "circle")
-                            .font(.caption2)
-                            .foregroundStyle(task.isMilestone ? theme.accent : theme.primary)
-                        
-                        Text(task.title)
-                            .font(.subheadline)
-                            .lineLimit(1)
-                            .foregroundStyle(theme.primary)
-                        
-                        Spacer()
-                        
-                        if let date = task.dueDate {
-                            Text(date, format: .dateTime.hour().minute())
-                                .font(.caption2)
-                                .foregroundStyle(theme.secondary)
+                VStack(spacing: 0) {
+                    ForEach(combinedTasks) { task in
+                        HStack {
+                            // STATIC IMAGE (Not a Button)
+                            Image(systemName: task.isMilestone ? "flag.circle" : "circle")
+                                .font(.title3)
+                                .foregroundStyle(task.isMilestone ? theme.accent : theme.primary)
+                            
+                            Text(task.title)
+                                .font(.subheadline)
+                                .lineLimit(1)
+                                .foregroundStyle(theme.primary)
+                                .strikethrough(false)
+                            
+                            Spacer()
+                            
+                            if let date = task.dueDate {
+                                Text(date, format: .dateTime.hour().minute())
+                                    .font(.caption2)
+                                    .foregroundStyle(theme.secondary)
+                            }
+                        }
+                        .padding(.vertical, 4)
+                        if task.id != combinedTasks.last?.id {
+                             Divider().opacity(0.3)
                         }
                     }
                 }
@@ -201,8 +210,8 @@ struct LargeWidgetView: View {
     let theme: Theme
     
     var combinedTasks: [MediumWidgetView.AnyTask] {
-        let s = simples.filter { !$0.isDone }.map { MediumWidgetView.AnyTask(title: $0.title, dueDate: $0.dueDate, isMilestone: false) }
-        let m = milestones.filter { !$0.isDone }.map { MediumWidgetView.AnyTask(title: $0.title, dueDate: $0.dueDate, isMilestone: true) }
+        let s = simples.map { MediumWidgetView.AnyTask(id: $0.id, title: $0.title, dueDate: $0.dueDate, isMilestone: false) }
+        let m = milestones.map { MediumWidgetView.AnyTask(id: $0.id, title: $0.title, dueDate: $0.dueDate, isMilestone: true) }
         
         // Show Top 8 for Large
         return (s + m).sorted { a, b in
@@ -235,13 +244,14 @@ struct LargeWidgetView: View {
                 }
                 .frame(maxWidth: .infinity)
             } else {
-                VStack(spacing: 8) {
+                VStack(spacing: 0) {
                     ForEach(combinedTasks) { task in
                         HStack {
-                            Image(systemName: task.isMilestone ? "flag.fill" : "circle")
-                                .font(.caption2)
+                            // STATIC IMAGE (Not a Button)
+                            Image(systemName: task.isMilestone ? "flag.circle" : "circle")
+                                .font(.title3)
                                 .foregroundStyle(task.isMilestone ? theme.accent : theme.primary)
-                            
+
                             Text(task.title)
                                 .font(.subheadline)
                                 .lineLimit(1)
@@ -255,7 +265,10 @@ struct LargeWidgetView: View {
                                     .foregroundStyle(theme.secondary)
                             }
                         }
-                        Divider().opacity(0.3)
+                        .padding(.vertical, 6)
+                        if task.id != combinedTasks.last?.id {
+                            Divider().opacity(0.3)
+                        }
                     }
                 }
             }
@@ -278,7 +291,7 @@ struct WReminderWidget: Widget {
                 .modelContainer(SharedPersistence.shared.container)
         }
         .configurationDisplayName("W Reminder")
-        .description("Track your tasks and milestones.")
+        .description("View and complete your tasks.")
         .supportedFamilies([.systemSmall, .systemMedium, .systemLarge])
     }
 }
