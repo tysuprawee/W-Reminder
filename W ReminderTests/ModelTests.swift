@@ -186,6 +186,26 @@ final class ModelTests: XCTestCase {
         XCTAssertTrue(checklist.isDone)
     }
     
+    func testChecklistExtendedProperties() throws {
+        // Given
+        let recurrence = "weekly"
+        let completedDate = Date()
+        
+        // When
+        let checklist = Checklist(
+            title: "Recurring Task",
+            items: [],
+            tags: [],
+            recurrenceRule: recurrence,
+            completedAt: completedDate
+        )
+        modelContext.insert(checklist)
+        
+        // Then
+        XCTAssertEqual(checklist.recurrenceRule, recurrence)
+        XCTAssertEqual(checklist.completedAt, completedDate)
+    }
+    
     // MARK: - SimpleChecklist Tests
     
     func testSimpleChecklistCreation() throws {
@@ -228,6 +248,24 @@ final class ModelTests: XCTestCase {
         
         // Then
         XCTAssertTrue(checklist.isDone)
+    }
+
+    func testSimpleChecklistExtendedProperties() throws {
+        // Given
+        let recurrence = "daily"
+        let completedDate = Date()
+        
+        // When
+        let checklist = SimpleChecklist(
+            title: "Daily Task",
+            recurrenceRule: recurrence,
+            completedAt: completedDate
+        )
+        modelContext.insert(checklist)
+        
+        // Then
+        XCTAssertEqual(checklist.recurrenceRule, recurrence)
+        XCTAssertEqual(checklist.completedAt, completedDate)
     }
     
     // MARK: - Relationship Tests

@@ -46,7 +46,7 @@ final class TimelineUITests: XCTestCase {
             }
             
             // Enable deadline
-            let deadlineToggle = app.switches.firstMatch
+            let deadlineToggle = app.buttons["deadlineToggle"]
             if deadlineToggle.exists {
                 deadlineToggle.tap()
                 // Wait for date picker to appear
@@ -122,7 +122,7 @@ final class TimelineUITests: XCTestCase {
             }
             
             // Enable deadline
-            let deadlineToggle = app.switches.firstMatch
+            let deadlineToggle = app.buttons["deadlineToggle"]
             if deadlineToggle.exists {
                 deadlineToggle.tap()
             }
@@ -185,8 +185,8 @@ final class TimelineUITests: XCTestCase {
         settingsTab.tap()
         
         // Then - Silent mode info should be visible
-        let soundModeText = app.staticTexts["Sound Mode"]
-        XCTAssertTrue(soundModeText.exists, "Sound Mode label should exist in Settings")
+        let soundModeText = app.staticTexts["Silent Mode"]
+        XCTAssertTrue(soundModeText.exists, "Silent Mode label should exist in Settings")
     }
     
     // MARK: - Performance Tests
@@ -227,7 +227,7 @@ final class TimelineUITests: XCTestCase {
         titleField.tap()
         titleField.typeText("Time Format Test")
         
-        let deadlineToggle = app.switches["deadlineToggle"]
+        let deadlineToggle = app.buttons["deadlineToggle"]
         XCTAssertTrue(deadlineToggle.exists, "Deadline toggle should exist")
         deadlineToggle.tap()
         

@@ -99,30 +99,28 @@ final class UtilityTests: XCTestCase {
         let allSounds = NotificationSound.allCases
         
         // Then
-        XCTAssertEqual(allSounds.count, 5)
+        XCTAssertEqual(allSounds.count, 3)
         XCTAssertTrue(allSounds.contains(.default))
-        XCTAssertTrue(allSounds.contains(.bell))
-        XCTAssertTrue(allSounds.contains(.chime))
-        XCTAssertTrue(allSounds.contains(.alert))
-        XCTAssertTrue(allSounds.contains(.ping))
+        XCTAssertTrue(allSounds.contains(.bellsEcho))
+        XCTAssertTrue(allSounds.contains(.game))
     }
     
     func testNotificationSoundFileName() {
         // Given
         let defaultSound = NotificationSound.default
-        let bellSound = NotificationSound.bell
+        let bellSound = NotificationSound.bellsEcho
         
         // Then
         XCTAssertNil(defaultSound.fileName)
-        XCTAssertEqual(bellSound.fileName, "bell.caf")
+        XCTAssertEqual(bellSound.fileName, "bells-echo.wav")
     }
     
     func testNotificationSoundRawValue() {
         // Given
-        let sound = NotificationSound.chime
+        let sound = NotificationSound.game
         
         // Then
-        XCTAssertEqual(sound.rawValue, "Chime")
+        XCTAssertEqual(sound.rawValue, "Game")
     }
 }
 }

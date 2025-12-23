@@ -361,10 +361,7 @@ struct SimpleChecklistView: View {
                                 _ = pendingCompletionIDs.insert(checklist.id)
                             }
                             // Haptic
-                            if isHapticsEnabled {
-                                let generator = UIImpactFeedbackGenerator(style: .medium)
-                                generator.impactOccurred()
-                            }
+                            HapticManager.shared.play(.rigid)
                             
                             // 2. Schedule Batch Commit
                             batchCompletionTask?.cancel()
@@ -391,6 +388,7 @@ struct SimpleChecklistView: View {
                              } else {
                                  // Was actually written to DB, undo it
                                  checklist.isDone = false
+                                 checklist.completedAt = nil
                                  try? modelContext.save()
                                  WidgetCenter.shared.reloadAllTimelines()
                                  Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
@@ -428,8 +426,7 @@ struct SimpleChecklistView: View {
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
         .refreshable {
             // Trigger haptic feedback
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
+            HapticManager.shared.play(.medium)
             
             // Force refresh by updating refreshID
             refreshID = UUID()
@@ -458,6 +455,7 @@ struct SimpleChecklistView: View {
                     // Safety check if already done
                     if !checklist.isDone {
                         checklist.isDone = true
+                        checklist.completedAt = Date()
                         tasksCompleted += 1
                         
                         // Recurrence logic here

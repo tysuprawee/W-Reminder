@@ -82,8 +82,9 @@ struct RootView: View {
         .preferredColorScheme(theme.isDark ? .dark : .light)
         .overlay {
             if StreakManager.shared.showCelebration {
-                ConfettiView()
-                    .allowsHitTesting(false) // Don't block touches
+                StreakCelebrationView(streakCount: StreakManager.shared.currentStreak)
+                    .transition(.opacity.combined(with: .scale(scale: 1.1)))
+                    .zIndex(100) // Ensure it's on top
             }
             
             if syncManager.isSyncing {
@@ -367,29 +368,16 @@ struct SettingsView: View {
                     }
                 }
 
-                Section("Theme") {
-                    ForEach(Theme.all) { option in
-                        Button {
-                            selectedThemeId = option.id
-                        } label: {
-                            HStack(spacing: 12) {
-                                themeSwatch(for: option)
-                                VStack(alignment: .leading, spacing: 4) {
-                                    Text(option.name)
-                                        .foregroundStyle(.primary)
-                                    Text(option.id == Theme.default.id ? "Default" : "Custom")
-                                        .font(.caption)
-                                        .foregroundStyle(.secondary)
-                                }
-                                Spacer()
-                                if selectedThemeId == option.id {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundStyle(option.accent)
-                                }
-                            }
-                            .contentShape(Rectangle())
+                Section("Appearance") {
+                    NavigationLink {
+                        ThemeSelectionView(selectedThemeId: $selectedThemeId, currentTheme: theme)
+                    } label: {
+                        HStack {
+                            Label("Theme", systemImage: "paintpalette.fill")
+                            Spacer()
+                            Text(theme.name)
+                                .foregroundStyle(.secondary)
                         }
-                        .buttonStyle(.plain)
                     }
                 }
                 .onChange(of: selectedThemeId) { oldValue, newValue in
@@ -413,7 +401,7 @@ struct SettingsView: View {
                     HStack {
                         Label("Version", systemImage: "info.circle")
                         Spacer()
-                        Text("1.03 beta")
+                        Text("1.04 beta")
                             .foregroundStyle(.secondary)
                             .font(.subheadline)
                     }

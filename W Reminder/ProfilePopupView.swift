@@ -12,6 +12,7 @@ struct ProfilePopupView: View {
     @State private var levelManager = LevelManager.shared
     @State private var streakManager = StreakManager.shared
     @State private var showingPremium = false
+    @State private var showingStats = false
     
     var body: some View {
         ScrollView {
@@ -106,6 +107,54 @@ struct ProfilePopupView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 16))
                 }
                 
+                // Productivity Insights
+                Button {
+                    // Future Subscription Logic:
+                    // Change `isStatsLocked` to `!StoreManager.shared.isPremium` or similar.
+                    let isStatsLocked = false 
+                    
+                    if isStatsLocked {
+                        showingPremium = true
+                    } else {
+                        showingStats = true
+                    }
+                } label: {
+                    HStack {
+                         ZStack {
+                             Circle().fill(theme.accent.opacity(0.1)).frame(width: 40, height: 40)
+                             Image(systemName: "chart.bar.fill")
+                                 .foregroundStyle(theme.accent)
+                         }
+                         VStack(alignment: .leading, spacing: 2) {
+                             Text("Productivity Insights")
+                                 .font(.headline)
+                                 .foregroundStyle(theme.primary)
+                             
+                             // Optional "Free Preview" label while it's free?
+                             // Text("Free Preview").font(.caption).foregroundStyle(.green)
+                         }
+                         
+                         Spacer()
+                         
+                         // Visual Gate
+                         let isStatsLocked = false
+                         if isStatsLocked {
+                             Image(systemName: "lock.fill")
+                                 .foregroundStyle(.secondary)
+                         } else {
+                             Image(systemName: "chevron.right")
+                                 .foregroundStyle(theme.secondary)
+                         }
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.5))
+                    .clipShape(RoundedRectangle(cornerRadius: 20))
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 20)
+                            .stroke(theme.secondary.opacity(0.1), lineWidth: 1)
+                    )
+                }
+                
                 // Premium Banner
                 Button {
                     showingPremium = true
@@ -182,12 +231,18 @@ struct ProfilePopupView: View {
                     }
                 }
                 .padding(.bottom)
+                
+
             }
             .padding()
         }
         .background(theme.background) // Ensure background consistent
         .sheet(isPresented: $showingPremium) {
             PremiumUpgradeView(theme: theme)
+        }
+        .sheet(isPresented: $showingStats) {
+            StatisticsView(theme: theme)
+                .presentationDetents([.medium, .large])
         }
     }
 }

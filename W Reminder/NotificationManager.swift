@@ -59,7 +59,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func scheduleNotification(for checklist: Checklist) {
-        guard checklist.remind, let dueDate = checklist.dueDate, dueDate > Date() else { return }
+        guard !checklist.isDone, checklist.remind, let dueDate = checklist.dueDate, dueDate > Date() else { return }
         
         schedule(
             id: checklist.id,
@@ -80,7 +80,7 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
     }
 
     func scheduleNotification(for checklist: SimpleChecklist) {
-        guard checklist.remind, let dueDate = checklist.dueDate, dueDate > Date() else { return }
+        guard !checklist.isDone, checklist.remind, let dueDate = checklist.dueDate, dueDate > Date() else { return }
 
         schedule(
             id: checklist.id,

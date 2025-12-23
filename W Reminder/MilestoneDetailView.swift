@@ -394,8 +394,7 @@ struct MilestoneDetailView: View {
         // 2. XP Logic (Immediate for user feedback)
         if targetState {
             LevelManager.shared.addExp(xpPerSubTask)
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
+            HapticManager.shared.play(.rigid)
         } else {
             LevelManager.shared.addExp(-xpPerSubTask)
         }
@@ -425,8 +424,7 @@ struct MilestoneDetailView: View {
              isConfettiActive = true
              
              // Haptics
-             let generator = UINotificationFeedbackGenerator()
-             generator.notificationOccurred(.success)
+             HapticManager.shared.play(.success)
              
              // 2. Bonus XP (Optimistic)
              LevelManager.shared.addExp(xpCompletionBonus)
@@ -446,6 +444,7 @@ struct MilestoneDetailView: View {
                      
                      // NOW update the model
                      checklist.isDone = true
+                     checklist.completedAt = Date()
                      try? modelContext.save()
                      WidgetCenter.shared.reloadAllTimelines()
                      Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
@@ -454,6 +453,7 @@ struct MilestoneDetailView: View {
         } else {
              // Mark Undone (Immediate)
              checklist.isDone = false
+             checklist.completedAt = nil
              LevelManager.shared.addExp(-xpCompletionBonus)
              
              try? modelContext.save()
@@ -517,17 +517,19 @@ struct MilestoneDetailView: View {
         checklist.recurrenceRule = recurrenceRule
         checklist.isDone = isDone // If they toggle done in edit sheet
         
-        // Sync Items Logic (Clone & Replace safely)
-        for old in checklist.items { 
-            modelContext.delete(old) 
+        // Sync Items Logic (Safe Diff)
+        let incomingIDs = Set(items.map { $0.id })
+        let itemsToDelete = checklist.items.filter { !incomingIDs.contains($0.id) }
+        
+        for item in itemsToDelete {
+            modelContext.delete(item)
         }
         
-        let newItems = items.enumerated().map { idx, item -> ChecklistItem in
-             let fresh = ChecklistItem(text: item.text, isDone: item.isDone, position: idx, dueDate: item.dueDate)
-             fresh.checklist = checklist
-             return fresh
+        checklist.items = items
+        for (index, item) in items.enumerated() {
+            item.checklist = checklist
+            item.position = index
         }
-        checklist.items = newItems
         
         try? modelContext.save()
         WidgetCenter.shared.reloadAllTimelines()
@@ -569,6 +571,7 @@ struct MilestoneTaskRow: View {
                     .font(.title3)
                     .foregroundStyle(item.isDone ? theme.accent : theme.secondary)
                     .contentTransition(.symbolEffect(.replace))
+                    .symbolEffect(.bounce, value: item.isDone)
                 
                 VStack(alignment: .leading, spacing: 2) {
                     Text(item.text)

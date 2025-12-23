@@ -209,14 +209,14 @@ struct MilestoneView: View {
                             showingAddChecklist = true
                         } label: {
                             Image(systemName: "plus")
-                            .font(.title.bold())
-                            .foregroundStyle(.white)
-                            .frame(width: 60, height: 60)
-                            .background(
-                                Circle()
-                                    .fill(theme.accent)
-                                    .shadow(color: theme.accent.opacity(0.4), radius: 10, x: 0, y: 5)
-                            )
+                                .font(.title.bold())
+                                .foregroundStyle(.white)
+                                .frame(width: 60, height: 60)
+                                .background(
+                                    Circle()
+                                        .fill(theme.accent)
+                                        .shadow(color: theme.accent.opacity(0.4), radius: 10, x: 0, y: 5)
+                                )
                         }
                         .padding()
                     }
@@ -333,23 +333,19 @@ struct MilestoneView: View {
         // Immediate persistence
         try? modelContext.save()
 
-        // sync items with relationship and preserve ordering using valid objects
-        // We clone items to ensure we don't hit "Data not found" errors if context is stale
-        for oldItem in checklist.items {
-            modelContext.delete(oldItem)
+        // Sync Items Logic (Safe Diff)
+        let incomingIDs = Set(items.map { $0.id })
+        let itemsToDelete = checklist.items.filter { !incomingIDs.contains($0.id) }
+        
+        for item in itemsToDelete {
+            modelContext.delete(item)
         }
         
-        let validItems = items.enumerated().map { idx, item -> ChecklistItem in
-            let newItem = ChecklistItem(
-                text: item.text,
-                isDone: item.isDone,
-                position: idx,
-                dueDate: item.dueDate // Preserve due date
-            )
-            newItem.checklist = checklist
-            return newItem
+        checklist.items = items
+        for (index, item) in items.enumerated() {
+            item.checklist = checklist
+            item.position = index
         }
-        checklist.items = validItems
 
         NotificationManager.shared.cancelNotification(for: checklist)
         NotificationManager.shared.scheduleNotification(for: checklist)
@@ -453,8 +449,7 @@ struct MilestoneView: View {
         .shadow(color: .black.opacity(0.08), radius: 10, x: 0, y: 4)
         .refreshable {
             // Trigger haptic feedback
-            let generator = UIImpactFeedbackGenerator(style: .light)
-            generator.impactOccurred()
+            HapticManager.shared.play(.medium)
             
             // Force refresh by updating refreshID
             refreshID = UUID()
@@ -864,9 +859,8 @@ struct AddChecklistView: View {
                     Button {
                         item.isDone.toggle()
                         
-                        if isHapticsEnabled && item.isDone {
-                             let generator = UIImpactFeedbackGenerator(style: .light)
-                             generator.impactOccurred()
+                        if item.isDone {
+                             HapticManager.shared.play(.rigid)
                         }
                         
                         // Auto-update parent status

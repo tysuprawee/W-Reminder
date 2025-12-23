@@ -211,7 +211,14 @@ struct RecordsView: View {
                             isPendingCompletion: false,
                             onToggleDone: {
                                 withAnimation(.easeInOut) {
+                                    let wasDone = checklist.isDone
                                     checklist.isDone.toggle()
+                                    
+                                    if !wasDone && checklist.isDone {
+                                        checklist.completedAt = Date()
+                                    } else if wasDone && !checklist.isDone {
+                                        checklist.completedAt = nil
+                                    }
                                 }
                             },
                             onEdit: {
@@ -296,7 +303,13 @@ struct RecordsView: View {
             checklist.notes = notes
             checklist.dueDate = dueDate
             checklist.remind = remind
+            
+            // Stats Logic
+            if checklist.isDone != isDone {
+                checklist.completedAt = isDone ? Date() : nil
+            }
             checklist.isDone = isDone
+            
             checklist.tags = tags
             checklist.recurrenceRule = recurrenceRule
         } else {
@@ -310,6 +323,7 @@ struct RecordsView: View {
                 recurrenceRule: recurrenceRule
             )
             checklist.isDone = isDone
+            if isDone { checklist.completedAt = Date() }
             modelContext.insert(checklist)
         }
 

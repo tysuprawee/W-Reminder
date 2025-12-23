@@ -91,8 +91,63 @@ struct Theme: Identifiable, Hashable {
         .pastelDream,
         .mintFresh,
         .lavenderHaze,
-        .oceanic
+        .oceanic,
+        .sunsetGlow,
+        .forestDeep,
+        .royalGold,
+        .charcoal,
+        .skyBlue
     ]
+
+    static let sunsetGlow = Theme(
+        id: "sunsetGlow",
+        name: "Sunset Glow",
+        primary: Color(hex: "#3E2723"),
+        secondary: Color(hex: "#D84315"),
+        accent: Color(hex: "#FF6F00"),
+        background: Color(hex: "#FFCCBC"),
+        isDark: false
+    )
+
+    static let forestDeep = Theme(
+        id: "forestDeep",
+        name: "Forest Deep",
+        primary: Color(hex: "#E8F5E9"),
+        secondary: Color(hex: "#A5D6A7"),
+        accent: Color(hex: "#66BB6A"),
+        background: Color(hex: "#1B5E20"),
+        isDark: true
+    )
+
+    static let royalGold = Theme(
+        id: "royalGold",
+        name: "Royal Gold",
+        primary: Color(hex: "#FFF8E1"),
+        secondary: Color(hex: "#FFECB3"),
+        accent: Color(hex: "#FFC107"),
+        background: Color(hex: "#311B92"),
+        isDark: true
+    )
+
+    static let charcoal = Theme(
+        id: "charcoal",
+        name: "Modern Charcoal",
+        primary: Color(hex: "#ECEFF1"),
+        secondary: Color(hex: "#CFD8DC"),
+        accent: Color(hex: "#00BCD4"),
+        background: Color(hex: "#263238"),
+        isDark: true
+    )
+
+    static let skyBlue = Theme(
+        id: "skyBlue",
+        name: "Sky High",
+        primary: Color(hex: "#01579B"),
+        secondary: Color(hex: "#0288D1"),
+        accent: Color(hex: "#29B6F6"),
+        background: Color(hex: "#E1F5FE"),
+        isDark: false
+    )
 
     static let `default` = classic
 }

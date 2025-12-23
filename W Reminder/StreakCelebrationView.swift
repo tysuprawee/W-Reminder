@@ -1,0 +1,123 @@
+//
+//  StreakCelebrationView.swift
+//  W Reminder
+//
+//  Created for Enhanced Gamification
+//
+
+import SwiftUI
+
+struct StreakCelebrationView: View {
+    @State private var animateIcon = false
+    @State private var animateText = false
+    @State private var rotation = 0.0
+    
+    let streakCount: Int
+    
+    var body: some View {
+        ZStack {
+            // Dimmed Background
+            Color.black.opacity(0.4)
+                .ignoresSafeArea()
+            
+            // Confetti Layer (Behind Popup)
+            ConfettiView()
+            
+            // Card Content
+            VStack(spacing: 20) {
+                // Animated Flame Icon
+                ZStack {
+                    Circle()
+                        .fill(
+                            LinearGradient(
+                                colors: [.orange, .red],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        )
+                        .frame(width: 120, height: 120)
+                        .shadow(color: .orange.opacity(0.5), radius: 20, x: 0, y: 10)
+                        .overlay(
+                            Circle()
+                                .stroke(Color.white.opacity(0.3), lineWidth: 4)
+                        )
+                    
+                    Image(systemName: "flame.fill")
+                        .resizable()
+                        .aspectRatio(contentMode: .fit)
+                        .frame(width: 60, height: 60)
+                        .foregroundStyle(.white)
+                        .shadow(color: .red, radius: 2, x: 0, y: 2)
+                        .rotationEffect(.degrees(rotation))
+                }
+                .scaleEffect(animateIcon ? 1 : 0.1)
+                .opacity(animateIcon ? 1 : 0)
+                
+                VStack(spacing: 8) {
+                    Text("Streak Active!")
+                        .font(.title2.bold())
+                        .foregroundStyle(.white)
+                    
+                    Text("\(streakCount) Days")
+                        .font(.system(size: 44, weight: .heavy, design: .rounded))
+                        .foregroundStyle(
+                            LinearGradient(
+                                colors: [.yellow, .orange],
+                                startPoint: .leading,
+                                endPoint: .trailing
+                            )
+                        )
+                        .shadow(color: .orange.opacity(0.5), radius: 5)
+                    
+                    Text("Don't break the chain!")
+                        .font(.subheadline)
+                        .foregroundStyle(.white.opacity(0.9))
+                }
+                .offset(y: animateText ? 0 : 20)
+                .opacity(animateText ? 1 : 0)
+            }
+            .padding(40)
+            .background(
+                RoundedRectangle(cornerRadius: 30, style: .continuous)
+                    .fill(.ultraThinMaterial)
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 30, style: .continuous)
+                            .stroke(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.5), .clear],
+                                    startPoint: .topLeading,
+                                    endPoint: .bottomTrailing
+                                ),
+                                lineWidth: 1
+                            )
+                    )
+                    .shadow(color: .black.opacity(0.2), radius: 30, x: 0, y: 15)
+            )
+        }
+        .onAppear {
+            // Haptic Feedback for Impact
+            HapticManager.shared.play(.success)
+            
+            // Play Celebration Sound
+            SoundPlayer.shared.playSound(named: "success.mp3")
+            
+            // Sequence Animations
+            withAnimation(.spring(response: 0.5, dampingFraction: 0.6)) {
+                animateIcon = true
+            }
+            
+            withAnimation(.easeOut(duration: 0.5).delay(0.2)) {
+                animateText = true
+            }
+            
+            // Continuous Loop for Flame
+            withAnimation(.linear(duration: 2).repeatForever(autoreverses: true)) {
+                rotation = 10
+            }
+        }
+    }
+}
+
+#Preview {
+    StreakCelebrationView(streakCount: 5)
+}

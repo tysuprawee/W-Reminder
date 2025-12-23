@@ -75,12 +75,20 @@ final class NotificationTests: XCTestCase {
         XCTAssertNil(sound.fileName, "Default sound should not have a custom file name")
     }
     
-    func testNotificationSoundBellHasFileName() {
+    func testNotificationSoundBellsEchoHasFileName() {
         // Given
-        let sound = NotificationSound.bell
+        let sound = NotificationSound.bellsEcho
         
         // Then
-        XCTAssertEqual(sound.fileName, "bell.caf")
+        XCTAssertEqual(sound.fileName, "bells-echo.wav")
+    }
+    
+    func testNotificationSoundGameHasFileName() {
+        // Given
+        let sound = NotificationSound.game
+        
+        // Then
+        XCTAssertEqual(sound.fileName, "game.wav")
     }
     
     func testNotificationSoundEnumCaseCount() {
@@ -88,21 +96,19 @@ final class NotificationTests: XCTestCase {
         let allCases = NotificationSound.allCases
         
         // Then
-        XCTAssertEqual(allCases.count, 5, "Should have exactly 5 sound options")
+        XCTAssertEqual(allCases.count, 3, "Should have exactly 3 sound options")
     }
     
     func testNotificationSoundRawValues() {
         // Then
         XCTAssertEqual(NotificationSound.default.rawValue, "Default")
-        XCTAssertEqual(NotificationSound.bell.rawValue, "Bell")
-        XCTAssertEqual(NotificationSound.chime.rawValue, "Chime")
-        XCTAssertEqual(NotificationSound.alert.rawValue, "Alert")
-        XCTAssertEqual(NotificationSound.ping.rawValue, "Ping")
+        XCTAssertEqual(NotificationSound.bellsEcho.rawValue, "Bells Echo")
+        XCTAssertEqual(NotificationSound.game.rawValue, "Game")
     }
     
     func testNotificationSoundIdentifiable() {
         // Given
-        let sound = NotificationSound.chime
+        let sound = NotificationSound.game
         
         // Then
         XCTAssertEqual(sound.id, sound.rawValue, "ID should match raw value")
