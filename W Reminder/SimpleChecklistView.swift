@@ -598,6 +598,7 @@ struct AddSimpleChecklistView: View {
     @State private var selectedTags: [Tag] = []
     @State private var recurrenceRule: String? = nil
     @State private var detectedDate: SmartDateResult? = nil
+    @State private var showingMaxTagsAlert = false
     
     // Custom Tag Creation State
     @State private var showingNewTagSheet = false
@@ -626,6 +627,11 @@ struct AddSimpleChecklistView: View {
                                     .background(theme.primary.opacity(0.05))
                                     .clipShape(RoundedRectangle(cornerRadius: 16))
                                     .onChange(of: title) { oldValue, newValue in
+                                        // Limit Title Length to 60
+                                        if newValue.count > 60 {
+                                            title = String(newValue.prefix(60))
+                                        }
+                                        
                                         if let result = DateParser.shared.parse(newValue) {
                                             withAnimation { detectedDate = result }
                                         } else {
@@ -683,6 +689,8 @@ struct AddSimpleChecklistView: View {
                                                     } else {
                                                         if selectedTags.count < 3 {
                                                             selectedTags.append(tag)
+                                                        } else {
+                                                            showingMaxTagsAlert = true
                                                         }
                                                     }
                                                 }
@@ -715,10 +723,22 @@ struct AddSimpleChecklistView: View {
                                             .contextMenu {
                                                 Button(role: .destructive) {
                                                     withAnimation {
+                                                        // 1. Remove from local selection
                                                         if let idx = selectedTags.firstIndex(where: { $0.id == tag.id }) {
                                                             selectedTags.remove(at: idx)
                                                         }
+                                                        
+                                                        // 2. Register deletion for Sync
+                                                        SyncManager.shared.registerDeletion(of: tag, context: modelContext)
+                                                        
+                                                        // 3. Delete from Context
                                                         modelContext.delete(tag)
+                                                        
+                                                        // 4. Save & Sync
+                                                        try? modelContext.save()
+                                                        Task {
+                                                            await SyncManager.shared.sync(container: modelContext.container, silent: true)
+                                                        }
                                                     }
                                                 } label: {
                                                     Label("Delete Tag", systemImage: "trash")
@@ -727,7 +747,11 @@ struct AddSimpleChecklistView: View {
                                         }
                                                                                 // "Add Tag" Button
                                          Button {
-                                             showingNewTagSheet = true
+                                             if selectedTags.count >= 3 {
+                                                 showingMaxTagsAlert = true
+                                             } else {
+                                                 showingNewTagSheet = true
+                                             }
                                          } label: {
                                             Image(systemName: "plus")
                                                 .font(.caption.bold())
@@ -912,6 +936,11 @@ struct AddSimpleChecklistView: View {
         } message: {
             Text("Please enter a title for your checklist.")
         }
+        .alert("Limit Reached", isPresented: $showingMaxTagsAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("You can only have up to 3 tags per item.")
+        }
         .onAppear {
             print("DEBUG: AddSimpleChecklistView appeared. Checklist: \(String(describing: checklist?.title)), ID: \(String(describing: checklist?.id))")
             if let checklist {
@@ -982,11 +1011,11 @@ struct SimpleChecklistRow: View {
                         }
                     }
                     
-                    // Option 2: Vertical Stack (Title top, Tags bottom)
+                    // Option 2: Vertical Stack (Title top, Tags flowed below)
                     VStack(alignment: .leading, spacing: 4) {
                         titleView
                         if !checklist.tags.isEmpty {
-                            HStack(spacing: 4) {
+                            FlowLayout(spacing: 4, lineSpacing: 4) {
                                 ForEach(checklist.tags.prefix(3)) { tag in
                                     tagPill(tag)
                                 }
@@ -1122,6 +1151,8 @@ struct SimpleChecklistRow: View {
         Text(tag.name)
             .font(.system(size: 10, weight: .bold))
             .foregroundStyle(tag.textColor)
+            .lineLimit(1)
+            .fixedSize()
             .padding(.horizontal, 6)
             .padding(.vertical, 2)
             .background(
@@ -1149,6 +1180,56 @@ struct SimpleChecklistRow: View {
 #Preview {
     SimpleChecklistView(theme: .default)
         .modelContainer(for: [SimpleChecklist.self, Tag.self], inMemory: true)
+}
+
+struct FlowLayout: Layout {
+    var spacing: CGFloat
+    var lineSpacing: CGFloat
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let width = proposal.width ?? .infinity
+        var height: CGFloat = 0
+        var currentX: CGFloat = 0
+        var currentY: CGFloat = 0
+        var maxHeightInLine: CGFloat = 0
+        
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            if currentX + size.width > width {
+                // New Line
+                currentX = 0
+                currentY += maxHeightInLine + lineSpacing
+                maxHeightInLine = 0
+            }
+            
+            currentX += size.width + spacing
+            maxHeightInLine = max(maxHeightInLine, size.height)
+        }
+        
+        return CGSize(width: width, height: currentY + maxHeightInLine)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var currentX = bounds.minX
+        var currentY = bounds.minY
+        var maxHeightInLine: CGFloat = 0
+        
+        for view in subviews {
+            let size = view.sizeThatFits(.unspecified)
+            
+            if currentX + size.width > bounds.maxX {
+                // New Line
+                currentX = bounds.minX
+                currentY += maxHeightInLine + lineSpacing
+                maxHeightInLine = 0
+            }
+            
+            view.place(at: CGPoint(x: currentX, y: currentY), proposal: .unspecified)
+            
+            currentX += size.width + spacing
+            maxHeightInLine = max(maxHeightInLine, size.height)
+        }
+    }
 }
 
 

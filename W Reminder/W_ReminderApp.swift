@@ -24,9 +24,54 @@ struct W_ReminderApp: App {
         StreakManager.shared.checkStreak()
     }
 
+    // State for RemoteConfig
+    @StateObject private var remoteConfig = RemoteConfigManager.shared
+    
     var body: some Scene {
         WindowGroup {
-            RootView()
+            ZStack {
+                RootView()
+                
+                // Blocking Update Screen
+                if remoteConfig.isUpdateRequired {
+                    Color.black.edgesIgnoringSafeArea(.all)
+                    
+                    VStack(spacing: 20) {
+                        Image(systemName: "arrow.down.circle.fill")
+                            .font(.system(size: 60))
+                            .foregroundStyle(.white)
+                        
+                        Text("Update Required")
+                            .font(.title.bold())
+                            .foregroundStyle(.white)
+                        
+                        Text(remoteConfig.updateMessage)
+                            .multilineTextAlignment(.center)
+                            .foregroundStyle(.white.opacity(0.8))
+                            .padding(.horizontal)
+                        
+                        if let url = remoteConfig.appStoreURL {
+                            Link(destination: url) {
+                                Text("Update Now")
+                                    .font(.headline)
+                                    .padding()
+                                    .frame(maxWidth: .infinity)
+                                    .background(Color.blue)
+                                    .foregroundColor(.white)
+                                    .cornerRadius(12)
+                            }
+                            .padding(.horizontal, 40)
+                        }
+                    }
+                    .padding()
+                    .background(Color.black.opacity(0.8))
+                    .cornerRadius(20)
+                    .padding()
+                }
+            }
+            .task {
+                remoteConfig.checkAppVersion()
+            }
         }
         .modelContainer(sharedModelContainer)
 

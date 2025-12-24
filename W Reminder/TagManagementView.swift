@@ -129,6 +129,11 @@ struct TagEditView: View {
         Form {
             Section("Tag Details") {
                 TextField("Tag Name", text: $name)
+                    .onChange(of: name) { oldValue, newValue in
+                        if newValue.count > 16 {
+                            name = String(newValue.prefix(16))
+                        }
+                    }
             }
             
             Section("Color") {

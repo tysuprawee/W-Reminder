@@ -546,6 +546,7 @@ struct AddChecklistView: View {
     // Custom Tag Creation State
     @State private var showingNewTagSheet = false
     @State private var showingErrorAlert = false
+    @State private var showingMaxTagsAlert = false
 
     var checklist: Checklist?
     let theme: Theme
@@ -594,6 +595,11 @@ struct AddChecklistView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text("Please enter a title for your milestone.")
+        }
+        .alert("Limit Reached", isPresented: $showingMaxTagsAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text("You can only have up to 3 tags per item.")
         }
         .onAppear {
             print("DEBUG: AddChecklistView appeared. Checklist: \(String(describing: checklist?.title)), ID: \(String(describing: checklist?.id))")
@@ -698,6 +704,8 @@ struct AddChecklistView: View {
                                     } else {
                                         if selectedTags.count < 3 {
                                             selectedTags.append(tag)
+                                        } else {
+                                            showingMaxTagsAlert = true
                                         }
                                     }
                                 }
@@ -730,10 +738,22 @@ struct AddChecklistView: View {
                             .contextMenu {
                                 Button(role: .destructive) {
                                     withAnimation {
+                                        // 1. Remove from local selection
                                         if let idx = selectedTags.firstIndex(where: { $0.id == tag.id }) {
                                             selectedTags.remove(at: idx)
                                         }
+                                        
+                                        // 2. Register deletion for Sync
+                                        SyncManager.shared.registerDeletion(of: tag, context: modelContext)
+                                        
+                                        // 3. Delete from Context
                                         modelContext.delete(tag)
+                                        
+                                        // 4. Save & Sync
+                                        try? modelContext.save()
+                                        Task {
+                                            await SyncManager.shared.sync(container: modelContext.container, silent: true)
+                                        }
                                     }
                                 } label: {
                                     Label("Delete Tag", systemImage: "trash")
@@ -742,7 +762,11 @@ struct AddChecklistView: View {
                         }
                         
                         Button {
-                            showingNewTagSheet = true
+                            if selectedTags.count >= 3 {
+                                showingMaxTagsAlert = true
+                            } else {
+                                showingNewTagSheet = true
+                            }
                         } label: {
                             Image(systemName: "plus")
                                 .font(.caption.bold())
@@ -996,49 +1020,32 @@ struct ChecklistRow: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 6) {
-            HStack(alignment: .firstTextBaseline) {
-                Text(checklist.title)
-                    .font(.headline)
-                
-                // Multi-Tag Display
-                HStack(spacing: 4) {
-                    ForEach(checklist.tags.prefix(3)) { tag in
-                        Text(tag.name)
-                            .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(tag.textColor)
-                            .padding(.horizontal, 6)
-                            .padding(.vertical, 2)
-                            .background(
-                                Capsule()
-                                    .fill(tag.color.opacity(0.85))
-                                    .overlay(
-                                        Capsule()
-                                            .fill(
-                                                LinearGradient(
-                                                    colors: [.white.opacity(0.3), .clear],
-                                                    startPoint: .top,
-                                                    endPoint: .bottom
-                                                )
-                                            )
-                                    )
-                            )
-                            .overlay(
-                                Capsule()
-                                    .stroke(tag.color.opacity(0.4), lineWidth: 0.5)
-                            )
-                            .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
-                    }
-                    if checklist.tags.count > 3 {
-                        Text("+\(checklist.tags.count - 3)")
-                            .font(.caption2)
-                            .foregroundStyle(.secondary)
+            // Smart Layout for Title + Tags
+            ViewThatFits(in: .horizontal) {
+                // Option 1: Horizontal
+                HStack(alignment: .center, spacing: 8) {
+                    titleView
+                    tagsView
+                    Spacer()
+                    if let due = checklist.dueDate {
+                        Text(due, format: .dateTime.hour().minute())
+                            .font(.subheadline.bold())
+                            .foregroundStyle(theme.accent)
                     }
                 }
-                Spacer()
-                if let due = checklist.dueDate {
-                    Text(due, format: .dateTime.hour().minute())
-                        .font(.subheadline.bold())
-                        .foregroundStyle(theme.accent)
+                
+                // Option 2: Vertical fallback
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        titleView
+                        Spacer()
+                        if let due = checklist.dueDate {
+                            Text(due, format: .dateTime.hour().minute())
+                                .font(.subheadline.bold())
+                                .foregroundStyle(theme.accent)
+                        }
+                    }
+                    tagsView
                 }
             }
 
@@ -1164,6 +1171,58 @@ struct ChecklistRow: View {
         }
     }
 
+
+    
+    // MARK: - Subviews Helpers
+    private var titleView: some View {
+        Text(checklist.title)
+            .font(.headline)
+            .lineLimit(1)
+    }
+    
+    @ViewBuilder
+    private var tagsView: some View {
+        if !checklist.tags.isEmpty {
+            FlowLayout(spacing: 4, lineSpacing: 4) {
+                ForEach(checklist.tags.prefix(3)) { tag in
+                    Text(tag.name)
+                        .font(.system(size: 10, weight: .bold))
+                        .foregroundStyle(tag.textColor)
+                        .lineLimit(1)
+                        .fixedSize()
+                        .padding(.horizontal, 6)
+                        .padding(.vertical, 2)
+                        .background(
+                            Capsule()
+                                .fill(tag.color.opacity(0.85))
+                                .overlay(
+                                    Capsule()
+                                        .fill(
+                                            LinearGradient(
+                                                colors: [.white.opacity(0.3), .clear],
+                                                startPoint: .top,
+                                                endPoint: .bottom
+                                            )
+                                        )
+                                )
+                        )
+                        .overlay(
+                            Capsule()
+                                .stroke(tag.color.opacity(0.4), lineWidth: 0.5)
+                        )
+                        .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
+                }
+                if checklist.tags.count > 3 {
+                    Text("+\(checklist.tags.count - 3)")
+                        .font(.caption2)
+                        .foregroundStyle(.secondary)
+                }
+            }
+        }
+    }
+
 }
+
+
 
 
