@@ -35,7 +35,7 @@ final class LevelManager {
     // Config
     private let expPerTask = 10
     private let expPerStreak = 25
-    private let expPerLevelBase = 50 // New easier curve (was 100)
+    private let expPerLevelBase = 35 // New easier curve (was 100, then 50)
     
     // Persistence Keys
     private let keyExp = "userExp"
@@ -49,21 +49,20 @@ final class LevelManager {
     
     // MARK: - Logic
     
-    // Quadratic Formula: TotalXP = 50 * (Level - 1)^2
-    // Level = sqrt(TotalXP / 50) + 1
+    // Quadratic Formula: TotalXP = 35 * (Level - 1)^2
+    // Level = sqrt(TotalXP / 35) + 1
     //
     // Lvl 1: 0 XP
-    // Lvl 2: 50 XP (Gap 50)
-    // Lvl 3: 200 XP (Gap 150)
-    // Lvl 4: 450 XP (Gap 250)
+    // Lvl 2: 35 XP (Gap 35)
+    // Lvl 3: 140 XP (Gap 105)
     // Harder as you go!
     
     var expForNextLevel: Int {
-        return 50 * (currentLevel * currentLevel)
+        return 35 * (currentLevel * currentLevel)
     }
     
     var expForCurrentLevel: Int {
-        return 50 * ((currentLevel - 1) * (currentLevel - 1))
+        return 35 * ((currentLevel - 1) * (currentLevel - 1))
     }
     
     var expProgress: Double {
@@ -85,7 +84,7 @@ final class LevelManager {
     
     func checkLevelUp() {
         // Recalculate based on total EXP
-        let calculatedLevel = Int(sqrt(Double(currentExp) / 50.0)) + 1
+        let calculatedLevel = Int(sqrt(Double(currentExp) / Double(expPerLevelBase))) + 1
         
         if calculatedLevel > currentLevel {
             // Level Up!
@@ -100,8 +99,8 @@ final class LevelManager {
     
     // MARK: - Achievements
     
-    func incrementTaskCount() {
-        totalTasksCompleted += 1
+    func incrementTaskCount(by amount: Int = 1) {
+        totalTasksCompleted += amount
         saveData()
         checkAchievements()
     }
@@ -176,7 +175,7 @@ final class LevelManager {
     func loadData() {
         let defaults = UserDefaults.standard
         currentExp = defaults.integer(forKey: keyExp)
-        currentLevel = Int(sqrt(Double(currentExp) / 50.0)) + 1 // Recalculate using quadratic
+        currentLevel = Int(sqrt(Double(currentExp) / Double(expPerLevelBase))) + 1 // Recalculate using quadratic
         totalTasksCompleted = defaults.integer(forKey: keyTotalTasks)
         
         if let str = defaults.string(forKey: keyAchievements) {
@@ -217,7 +216,7 @@ final class LevelManager {
         }
         
         // Recalculate Level locally based on max XP to ensure consistency with new Curve
-        self.currentLevel = Int(sqrt(Double(self.currentExp) / 50.0)) + 1
+        self.currentLevel = Int(sqrt(Double(self.currentExp) / Double(expPerLevelBase))) + 1
         
         // 2. Achievements Strategy: Union of sets
         let cloudIds = achievementsString.components(separatedBy: ",")

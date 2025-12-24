@@ -689,7 +689,7 @@ struct AddSimpleChecklistView: View {
                                             } label: {
                                                  Text(tag.name)
                                                      .font(.caption.bold())
-                                                     .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
+                                                     .foregroundStyle(tag.textColor)
                                                      .padding(.horizontal, 12)
                                                      .padding(.vertical, 6)
                                                      .background(
@@ -896,9 +896,9 @@ struct AddSimpleChecklistView: View {
         }
         .sheet(isPresented: $showingNewTagSheet) {
             NavigationStack {
-                TagEditView(theme: theme) { name, color in
+                TagEditView(theme: theme) { name, color, isTextWhite in
                     let hexString = color.toHex()
-                    let newTag = Tag(name: name, colorHex: hexString)
+                    let newTag = Tag(name: name, colorHex: hexString, isTextWhite: isTextWhite)
                     modelContext.insert(newTag)
                     try? modelContext.save()
                     selectedTags.append(newTag)
@@ -963,46 +963,39 @@ struct SimpleChecklistRow: View {
             .disabled(isPendingCompletion) // Prevent double-taps while pending
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(checklist.title)
-                    .font(.headline)
-                    .foregroundStyle((checklist.isDone || isPendingCompletion) ? .secondary : theme.primary)
-                    .strikethrough((checklist.isDone || isPendingCompletion), color: .secondary)
-                    .animation(.default, value: isPendingCompletion)
-                    .lineLimit(2) // Allow wrapping
-                
-                // Multi-Tag Display
-                if !checklist.tags.isEmpty {
-                    HStack(spacing: 4) {
-                        ForEach(checklist.tags.prefix(3)) { tag in
-                            Text(tag.name)
-                                .font(.system(size: 10, weight: .bold))
-                                .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background(
-                                    Capsule()
-                                        .fill(tag.color.opacity(0.85))
-                                        .overlay(
-                                            Capsule()
-                                                .fill(
-                                                    LinearGradient(
-                                                        colors: [.white.opacity(0.3), .clear],
-                                                        startPoint: .top,
-                                                        endPoint: .bottom
-                                                    )
-                                                )
-                                        )
-                                )
-                                .overlay(
-                                    Capsule()
-                                        .stroke(tag.color.opacity(0.4), lineWidth: 0.5)
-                                )
-                                .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
+                // Smart Layout: Try horizontal (Title + Tags), fallback to Vertical
+                ViewThatFits(in: .horizontal) {
+                    // Option 1: Everything in one line
+                    HStack(alignment: .center, spacing: 8) {
+                        titleView
+                        if !checklist.tags.isEmpty {
+                            HStack(spacing: 4) {
+                                ForEach(checklist.tags.prefix(3)) { tag in
+                                    tagPill(tag)
+                                }
+                                if checklist.tags.count > 3 {
+                                    Text("+\(checklist.tags.count - 3)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
-                        if checklist.tags.count > 3 {
-                            Text("+\(checklist.tags.count - 3)")
-                                .font(.caption2)
-                                .foregroundStyle(.secondary)
+                    }
+                    
+                    // Option 2: Vertical Stack (Title top, Tags bottom)
+                    VStack(alignment: .leading, spacing: 4) {
+                        titleView
+                        if !checklist.tags.isEmpty {
+                            HStack(spacing: 4) {
+                                ForEach(checklist.tags.prefix(3)) { tag in
+                                    tagPill(tag)
+                                }
+                                if checklist.tags.count > 3 {
+                                    Text("+\(checklist.tags.count - 3)")
+                                        .font(.caption2)
+                                        .foregroundStyle(.secondary)
+                                }
+                            }
                         }
                     }
                 }
@@ -1114,6 +1107,43 @@ struct SimpleChecklistRow: View {
             return "Now"
         }
     }
+
+    // MARK: - Helpers
+    private var titleView: some View {
+        Text(checklist.title)
+            .font(.headline)
+            .foregroundStyle((checklist.isDone || isPendingCompletion) ? .secondary : theme.primary)
+            .strikethrough((checklist.isDone || isPendingCompletion), color: .secondary)
+            .animation(.default, value: isPendingCompletion)
+            .lineLimit(2)
+    }
+    
+    private func tagPill(_ tag: Tag) -> some View {
+        Text(tag.name)
+            .font(.system(size: 10, weight: .bold))
+            .foregroundStyle(tag.textColor)
+            .padding(.horizontal, 6)
+            .padding(.vertical, 2)
+            .background(
+                Capsule()
+                    .fill(tag.color)
+                    .overlay(
+                        Capsule()
+                            .fill(
+                                LinearGradient(
+                                    colors: [.white.opacity(0.3), .clear],
+                                    startPoint: .top,
+                                    endPoint: .bottom
+                                )
+                            )
+                    )
+            )
+            .overlay(
+                Capsule()
+                    .stroke(Color.primary.opacity(0.1), lineWidth: 0.5)
+            )
+            .shadow(color: tag.color.opacity(0.3), radius: 2, y: 1)
+    }
 }
 
 #Preview {
@@ -1122,8 +1152,4 @@ struct SimpleChecklistRow: View {
 }
 
 
-private extension View {
-    func isDarkColor(_ color: Color) -> Bool {
-        return true 
-    }
-}
+

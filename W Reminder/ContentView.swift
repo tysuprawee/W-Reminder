@@ -580,9 +580,9 @@ struct AddChecklistView: View {
         }
         .sheet(isPresented: $showingNewTagSheet) {
             NavigationStack {
-                TagEditView(theme: theme) { name, color in
+                TagEditView(theme: theme) { name, color, isTextWhite in
                     let hexString = color.toHex()
-                    let newTag = Tag(name: name, colorHex: hexString)
+                    let newTag = Tag(name: name, colorHex: hexString, isTextWhite: isTextWhite)
                     modelContext.insert(newTag)
                     try? modelContext.save()
                     selectedTags.append(newTag)
@@ -704,7 +704,7 @@ struct AddChecklistView: View {
                             } label: {
                                 Text(tag.name)
                                     .font(.caption.bold())
-                                    .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
+                                    .foregroundStyle(tag.textColor)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
                                     .background(
@@ -1005,7 +1005,7 @@ struct ChecklistRow: View {
                     ForEach(checklist.tags.prefix(3)) { tag in
                         Text(tag.name)
                             .font(.system(size: 10, weight: .bold))
-                            .foregroundStyle(isDarkColor(tag.color) ? .white : .black)
+                            .foregroundStyle(tag.textColor)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background(
@@ -1166,8 +1166,4 @@ struct ChecklistRow: View {
 
 }
 
-fileprivate extension View {
-    func isDarkColor(_ color: Color) -> Bool {
-        return true 
-    }
-}
+

@@ -343,7 +343,12 @@ struct MilestoneDetailView: View {
         
         if checklist.isDone {
             checklist.isDone = false
-            LevelManager.shared.addExp(-xpCompletionBonus)
+            // Deduct the full XP gained previously (Bonus + XP for all OLD items)
+            // Use count - 1 because we just appended a new item which presumably isn't what we got XP for
+            // logic: We got XP for (count-1) items + Bonus.
+            let previousItemCount = checklist.items.count - 1
+            let totalDeduction = xpCompletionBonus + (previousItemCount * xpPerSubTask)
+            LevelManager.shared.addExp(-totalDeduction)
         }
         
         // Immediate save for Creation to prevent "disappearing"
@@ -393,16 +398,34 @@ struct MilestoneDetailView: View {
         // Auto-Demote: If we uncheck a task, the Milestone cannot be Done anymore.
         if !targetState && checklist.isDone {
             checklist.isDone = false
-            LevelManager.shared.addExp(-xpCompletionBonus)
+            checklist.completedAt = nil
+            // Deduct everything we gave them (Bonus + XP for all items)
+            let totalDeduction = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
+            LevelManager.shared.addExp(-totalDeduction)
         }
         
-        // 2. XP Logic (Immediate for user feedback)
+        // 2. XP Logic (Immediate for user feedback) REFACTORED:
+        // We NO LONGER award XP per subtask immediately (User Request).
+        // XP is aggregated into the Milestone Completion event.
+        if targetState {
+            HapticManager.shared.play(.light)
+            
+            // KEYBOARD CONTROL: If this was the last task, dismiss keyboard so they can see "Complete" button
+            let allDone = checklist.items.allSatisfy { $0.isDone } // targetState is already set on 'item'
+            if allDone {
+                isInputFocused = false
+            }
+        }
+        
+        /* 
+        Original logic removed:
         if targetState {
             LevelManager.shared.addExp(xpPerSubTask)
             HapticManager.shared.play(.rigid)
         } else {
             LevelManager.shared.addExp(-xpPerSubTask)
         }
+        */
         
         // 3. Debounced Save (Wait 1s of inactivity before hitting disk/sync)
         debouncedSaveTask?.cancel()
@@ -430,10 +453,16 @@ struct MilestoneDetailView: View {
              
              // Haptics
              HapticManager.shared.play(.success)
-             
-             // 2. Bonus XP (Optimistic)
-             LevelManager.shared.addExp(xpCompletionBonus)
-             StreakManager.shared.incrementStreak()
+                          
+              // 2. Bonus XP (Optimistic) + Aggregated Subtask XP
+              let totalXP = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
+              LevelManager.shared.addExp(totalXP)
+              
+              StreakManager.shared.incrementStreak()
+             // Count subtasks effectively as completed tasks for achievements
+             if !checklist.items.isEmpty {
+                 LevelManager.shared.incrementTaskCount(by: checklist.items.count)
+             }
              
              // 3. Delayed Dismissal THEN Persistence
              DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
@@ -462,11 +491,13 @@ struct MilestoneDetailView: View {
                  }
              }
         } else {
-             // Mark Undone (Immediate)
-             checklist.isDone = false
-             checklist.completedAt = nil
-             checklist.updatedAt = Date()
-             LevelManager.shared.addExp(-xpCompletionBonus)
+              checklist.isDone = false
+              checklist.completedAt = nil
+              checklist.updatedAt = Date()
+              
+              // Deduct EVERYTHING (Bonus + Subtasks)
+              let totalXP = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
+              LevelManager.shared.addExp(-totalXP)
              
              try? modelContext.save()
              WidgetCenter.shared.reloadAllTimelines()

@@ -200,8 +200,8 @@ struct CalendarView: View {
                     .padding(.horizontal)
                     .padding(.top)
 
-                let dailyMilestones = milestones.filter { isSameDay($0.dueDate, as: selectedDate) }
-                let dailyChecklists = checklists.filter { isSameDay($0.dueDate, as: selectedDate) }
+                let dailyMilestones = milestones.filter { isSameDay($0.dueDate, as: selectedDate) && !$0.isDone }
+                let dailyChecklists = checklists.filter { isSameDay($0.dueDate, as: selectedDate) && !$0.isDone }
 
                 if dailyMilestones.isEmpty && dailyChecklists.isEmpty {
                     ContentUnavailableView(
@@ -464,8 +464,8 @@ struct DayCell: View {
     }
 
     var body: some View {
-        let dailyMilestones = milestones.filter { isSameDay($0.dueDate, as: date) }
-        let dailyChecklists = checklists.filter { isSameDay($0.dueDate, as: date) }
+        let dailyMilestones = milestones.filter { isSameDay($0.dueDate, as: date) && !$0.isDone }
+        let dailyChecklists = checklists.filter { isSameDay($0.dueDate, as: date) && !$0.isDone }
         
         let hasEvents = !dailyMilestones.isEmpty || !dailyChecklists.isEmpty
         let tagColor = dailyMilestones.compactMap { $0.tags.first?.color }.first

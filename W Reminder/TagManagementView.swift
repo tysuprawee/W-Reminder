@@ -62,9 +62,9 @@ struct TagManagementView: View {
         }
         .sheet(isPresented: $showingAddTag) {
             NavigationStack {
-                TagEditView(theme: theme) { name, color in
+                TagEditView(theme: theme) { name, color, isTextWhite in
                     let hexString = color.toHex()
-                    let newTag = Tag(name: name, colorHex: hexString)
+                    let newTag = Tag(name: name, colorHex: hexString, isTextWhite: isTextWhite)
                     modelContext.insert(newTag)
                     try? modelContext.save()
                     Task {
@@ -76,9 +76,10 @@ struct TagManagementView: View {
         }
         .sheet(item: $editingTag) { tag in
             NavigationStack {
-                TagEditView(tag: tag, theme: theme) { name, color in
+                TagEditView(tag: tag, theme: theme) { name, color, isTextWhite in
                     tag.name = name
                     tag.colorHex = color.toHex()
+                    tag.isTextWhite = isTextWhite
                     try? modelContext.save()
                     Task {
                         await SyncManager.shared.sync(container: modelContext.container, silent: true)
@@ -108,18 +109,20 @@ struct TagManagementView: View {
 struct TagEditView: View {
     let tag: Tag?
     let theme: Theme
-    let onSave: (String, Color) -> Void
+    let onSave: (String, Color, Bool) -> Void
     
     @State private var name: String
     @State private var selectedColor: Color
+    @State private var isTextWhite: Bool
     @Environment(\.dismiss) private var dismiss
     
-    init(tag: Tag? = nil, theme: Theme, onSave: @escaping (String, Color) -> Void) {
+    init(tag: Tag? = nil, theme: Theme, onSave: @escaping (String, Color, Bool) -> Void) {
         self.tag = tag
         self.theme = theme
         self.onSave = onSave
         _name = State(initialValue: tag?.name ?? "")
         _selectedColor = State(initialValue: tag?.color ?? .blue)
+        _isTextWhite = State(initialValue: tag?.isTextWhite ?? true)
     }
     
     var body: some View {
@@ -139,6 +142,10 @@ struct TagEditView: View {
                             .frame(width: 40, height: 40)
                             .overlay(
                                 Circle()
+                                    .stroke(Color.gray.opacity(0.3), lineWidth: 1)
+                            )
+                            .overlay(
+                                Circle()
                                     .stroke(selectedColor == color ? theme.accent : Color.clear, lineWidth: 3)
                             )
                             .onTapGesture {
@@ -147,6 +154,63 @@ struct TagEditView: View {
                     }
                 }
                 .padding(.vertical, 8)
+                
+                // Text Color Preference
+                // Text Color Preference
+                HStack {
+                    Text("Text Color")
+                    Spacer()
+                    
+                    // Black Text Option
+                    Button {
+                        isTextWhite = false
+                    } label: {
+                        Text("Abc")
+                            .font(.caption.bold())
+                            .foregroundStyle(.black)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(selectedColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(!isTextWhite ? theme.accent : Color.clear, lineWidth: !isTextWhite ? 3 : 0)
+                            )
+                            .overlay(
+                                // Inner border for unselected state to show boundary clearly if needed
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                            )
+                            .scaleEffect(!isTextWhite ? 1.1 : 1.0)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isTextWhite)
+                    }
+                    .buttonStyle(.plain)
+                    
+                    // White Text Option
+                    Button {
+                        isTextWhite = true
+                    } label: {
+                        Text("Abc")
+                            .font(.caption.bold())
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(selectedColor)
+                            .clipShape(RoundedRectangle(cornerRadius: 8))
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(isTextWhite ? theme.accent : Color.clear, lineWidth: isTextWhite ? 3 : 0)
+                            )
+                            .overlay(
+                                RoundedRectangle(cornerRadius: 8)
+                                    .stroke(Color.primary.opacity(0.1), lineWidth: 1)
+                            )
+                            .scaleEffect(isTextWhite ? 1.1 : 1.0)
+                            .animation(.spring(response: 0.3, dampingFraction: 0.6), value: isTextWhite)
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.vertical, 4)
             }
         }
         .navigationTitle(tag == nil ? "New Tag" : "Edit Tag")
@@ -159,7 +223,7 @@ struct TagEditView: View {
             }
             ToolbarItem(placement: .confirmationAction) {
                 Button("Save") {
-                    onSave(name, selectedColor)
+                    onSave(name, selectedColor, isTextWhite)
                 }
                 .disabled(name.isEmpty)
             }
@@ -168,18 +232,24 @@ struct TagEditView: View {
     
     private var colorPresets: [Color] {
         [
-            Color(red: 1.0, green: 0.70, blue: 0.73), // Pastel Red
-            Color(red: 1.0, green: 0.87, blue: 0.73), // Pastel Orange
-            Color(red: 1.0, green: 1.0, blue: 0.73), // Pastel Yellow
-            Color(red: 0.73, green: 1.0, blue: 0.79), // Pastel Green
-            Color(red: 0.73, green: 0.88, blue: 1.0), // Pastel Blue
-            Color(red: 0.85, green: 0.75, blue: 0.90), // Pastel Purple
-            Color(red: 1.0, green: 0.80, blue: 0.85), // Pastel Pink
-            Color(red: 0.67, green: 0.94, blue: 0.82), // Pastel Teal
-            Color(red: 0.87, green: 0.94, blue: 0.95), // Pastel Cyan
-            Color(red: 0.95, green: 0.85, blue: 0.70), // Pastel Beige
-            Color(red: 0.80, green: 0.75, blue: 0.70), // Pastel Brown
-            Color(red: 0.85, green: 0.85, blue: 0.85)  // Pastel Gray
+            Color(hex: "#D32F2F"), // Red
+            Color(hex: "#EF5350"), // Light Red
+            Color(hex: "#AB47BC"), // Purple
+            Color(hex: "#7E57C2"), // Deep Purple
+            Color(hex: "#5C6BC0"), // Indigo
+            Color(hex: "#42A5F5"), // Blue
+            Color(hex: "#29B6F6"), // Light Blue
+            Color(hex: "#26C6DA"), // Cyan
+            Color(hex: "#26A69A"), // Teal
+            Color(hex: "#66BB6A"), // Green
+            Color(hex: "#9CCC65"), // Light Green
+            Color(hex: "#D4E157"), // Lime
+            Color(hex: "#FFEE58"), // Yellow (Darker)
+            Color(hex: "#FFCA28"), // Amber
+            Color(hex: "#FFA726"), // Orange
+            Color(hex: "#FF7043"), // Deep Orange
+            Color(hex: "#8D6E63"), // Brown
+            Color(hex: "#78909C")  // Blue Grey
         ]
     }
 }

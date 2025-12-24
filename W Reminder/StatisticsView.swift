@@ -36,11 +36,11 @@ struct StatisticsView: View {
         return days.map { date in
             let nextDate = calendar.date(byAdding: .day, value: 1, to: date)!
             
-            // Count Milestones
+            // Count Milestone Tasks
             let milestoneCount = milestones.filter {
                 guard let completedAt = $0.completedAt else { return false }
                 return completedAt >= date && completedAt < nextDate
-            }.count
+            }.reduce(0) { $0 + $1.items.count }
             
             // Count Simple Checklists
             let checklistCount = simpleChecklists.filter {
@@ -128,7 +128,7 @@ struct StatisticsView: View {
                             // Stacked Bar for Milestones
                             BarMark(
                                 x: .value("Day", stat.weekday),
-                                y: .value("Milestones", isAnimated ? stat.milestoneCount : 0)
+                                y: .value("Milestone Tasks", isAnimated ? stat.milestoneCount : 0)
                             )
                             .foregroundStyle(theme.accent)
                             .cornerRadius(4)
@@ -146,7 +146,7 @@ struct StatisticsView: View {
                         }
                         .chartLegend(.visible)
                         .chartForegroundStyleScale([
-                            "Milestones": theme.accent,
+                            "Milestone Tasks": theme.accent,
                             "Quick Tasks": theme.accent.opacity(0.5)
                         ])
                         .frame(height: 250)
@@ -160,7 +160,7 @@ struct StatisticsView: View {
                     // Breakdown / Legend info
                     HStack(spacing: 16) {
                         StatBadge(
-                            title: "Milestones",
+                            title: "Milestone Tasks",
                             count: chartData.reduce(0) { $0 + $1.milestoneCount },
                             color: theme.accent
                         )

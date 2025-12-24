@@ -221,7 +221,7 @@ final class SyncManager {
     private func preparePushPayload(context: ModelContext, userId: UUID) throws -> PushPayload {
         // Fetch all data from Main Context
         let tags = try context.fetch(FetchDescriptor<Tag>())
-        let tagDTOs = tags.map { CloudTag(id: $0.id, userId: userId, name: $0.name, colorHex: $0.colorHex) }
+        let tagDTOs = tags.map { CloudTag(id: $0.id, userId: userId, name: $0.name, colorHex: $0.colorHex, isTextWhite: $0.isTextWhite) }
         
         let checklists = try context.fetch(FetchDescriptor<SimpleChecklist>())
         var checklistDTOs: [CloudSimpleChecklist] = []
@@ -381,14 +381,31 @@ final class SyncManager {
         let localTags = try context.fetch(FetchDescriptor<Tag>())
         var tagsMap: [UUID: Tag] = [:]
         
+        // 1. Pre-fill map with all local tags to prevent detaching local-only tags
+        for tag in localTags {
+            tagsMap[tag.id] = tag
+        }
+        
+        // Prevent Resurrection: Ignore items we have explicitly deleted locally
+        let deletedRecords = try context.fetch(FetchDescriptor<DeletedRecord>())
+        let deletedIDs = Set(deletedRecords.map { $0.targetID })
+        
         for cloudTag in cloudTags {
             let tagID = cloudTag.id
-            if let existing = localTags.first(where: { $0.id == tagID }) {
+            
+            // If we deleted this locally, DO NOT resurrect it from cloud
+            if deletedIDs.contains(tagID) {
+                continue
+            }
+            
+            if let existing = tagsMap[tagID] {
+                // Update properties
                 if existing.name != cloudTag.name { existing.name = cloudTag.name }
                 if existing.colorHex != cloudTag.colorHex { existing.colorHex = cloudTag.colorHex }
-                tagsMap[tagID] = existing
+                if existing.isTextWhite != cloudTag.isTextWhite { existing.isTextWhite = cloudTag.isTextWhite }
             } else {
-                let newTag = Tag(id: tagID, name: cloudTag.name, colorHex: cloudTag.colorHex)
+                // Insert New from Cloud
+                let newTag = Tag(id: tagID, name: cloudTag.name, colorHex: cloudTag.colorHex, isTextWhite: cloudTag.isTextWhite)
                 context.insert(newTag)
                 tagsMap[tagID] = newTag
             }
@@ -481,6 +498,17 @@ final class SyncManager {
                 newList.id = listID
                 context.insert(newList)
                 listToUpdate = newList
+                
+                // Initialize tags for new list
+                if let links = linksByChecklist[listID] {
+                    var newTags: [Tag] = []
+                    for link in links {
+                        if let tag = tagsMap[link.tagId] {
+                            newTags.append(tag)
+                        }
+                    }
+                    listToUpdate.tags = newTags
+                }
             }
         }
     }
@@ -543,6 +571,17 @@ final class SyncManager {
                 newList.isDone = cloudList.isDone
                 context.insert(newList)
                 listToUpdate = newList
+                
+                // Initialize tags for new milestone
+                if let links = linksByMilestone[listID] {
+                    var newTags: [Tag] = []
+                    for link in links {
+                        if let tag = tagsMap[link.tagId] {
+                            newTags.append(tag)
+                        }
+                    }
+                    listToUpdate.tags = newTags
+                }
             }
             
             // Merge Items (Subtasks) - Trust Cloud for now (complex to track timestamps per item)
@@ -601,12 +640,14 @@ final class SyncManager {
         var userId: UUID
         var name: String
         var colorHex: String
+        var isTextWhite: Bool
         
         enum CodingKeys: String, CodingKey {
             case id
             case userId = "user_id"
             case name
             case colorHex = "color_hex"
+            case isTextWhite = "is_text_white"
         }
     }
 
