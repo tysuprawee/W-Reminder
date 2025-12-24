@@ -33,6 +33,7 @@ final class Checklist {
     var userOrder: Int = 0
     var recurrenceRule: String? // "daily", "weekly", "monthly", "custom"
     var completedAt: Date? // Added for Statistics
+    var updatedAt: Date = Date() // For Sync Conflict Resolution
     
     @Relationship(deleteRule: .cascade, inverse: \ChecklistItem.checklist) var items: [ChecklistItem] = []
     
@@ -50,7 +51,8 @@ final class Checklist {
         isStarred: Bool = false,
         userOrder: Int = 0,
         recurrenceRule: String? = nil,
-        completedAt: Date? = nil
+        completedAt: Date? = nil,
+        updatedAt: Date = Date()
     ) {
         self.title = title
         self.notes = notes
@@ -63,6 +65,7 @@ final class Checklist {
         self.userOrder = userOrder
         self.recurrenceRule = recurrenceRule
         self.completedAt = completedAt
+        self.updatedAt = updatedAt
     }
 }
 
@@ -79,6 +82,7 @@ final class SimpleChecklist {
     var userOrder: Int = 0
     var recurrenceRule: String?
     var completedAt: Date? // Added for Statistics
+    var updatedAt: Date = Date() // For Sync Conflict Resolution
     @Relationship var tags: [Tag] = []
 
     init(
@@ -91,7 +95,8 @@ final class SimpleChecklist {
         isStarred: Bool = false,
         userOrder: Int = 0,
         recurrenceRule: String? = nil,
-        completedAt: Date? = nil
+        completedAt: Date? = nil,
+        updatedAt: Date = Date()
     ) {
         self.title = title
         self.notes = notes
@@ -104,6 +109,7 @@ final class SimpleChecklist {
         self.userOrder = userOrder
         self.recurrenceRule = recurrenceRule
         self.completedAt = completedAt
+        self.updatedAt = updatedAt
     }
 }
 

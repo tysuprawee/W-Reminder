@@ -20,9 +20,13 @@ final class LevelManager {
     // Current Stats
     var currentExp: Int = 0
     var currentLevel: Int = 1
+    var totalTasksCompleted: Int = 0
     
     // Achievements
     var unlockedAchievementIds: [String] = []
+    
+    // UI State
+    var showLevelUpCelebration: Bool = false
     
     // Event Publishers for UI Animations
     @ObservationIgnored let xpGainedSubject = PassthroughSubject<Int, Never>()
@@ -37,6 +41,7 @@ final class LevelManager {
     private let keyExp = "userExp"
     private let keyLevel = "userLevel"
     private let keyAchievements = "userAchievements" 
+    private let keyTotalTasks = "userTotalTasks"
     
     private init() {
         loadData()
@@ -85,21 +90,25 @@ final class LevelManager {
         if calculatedLevel > currentLevel {
             // Level Up!
             currentLevel = calculatedLevel
-            // Trigger Animation via StreakManager
-            StreakManager.shared.showCelebration = true
+            // Trigger Animation
+            showLevelUpCelebration = true
             
             // Check Level-based achievements
             checkLevelAchievements()
-            
-            DispatchQueue.main.asyncAfter(deadline: .now() + 3) {
-                StreakManager.shared.showCelebration = false
-            }
         }
     }
     
     // MARK: - Achievements
     
-    func checkAchievements(totalTasks: Int, streak: Int) {
+    func incrementTaskCount() {
+        totalTasksCompleted += 1
+        saveData()
+        checkAchievements()
+    }
+    
+    func checkAchievements() {
+        let totalTasks = totalTasksCompleted
+        let streak = StreakManager.shared.currentStreak
         // Task Count Achievements (Very Frequent Rewards)
         if totalTasks >= 1 { unlock(id: "first_task") }
         if totalTasks >= 10 { unlock(id: "10_tasks") }
@@ -168,6 +177,7 @@ final class LevelManager {
         let defaults = UserDefaults.standard
         currentExp = defaults.integer(forKey: keyExp)
         currentLevel = Int(sqrt(Double(currentExp) / 50.0)) + 1 // Recalculate using quadratic
+        totalTasksCompleted = defaults.integer(forKey: keyTotalTasks)
         
         if let str = defaults.string(forKey: keyAchievements) {
             unlockedAchievementIds = str.components(separatedBy: ",")
@@ -178,6 +188,7 @@ final class LevelManager {
         let defaults = UserDefaults.standard
         defaults.set(currentExp, forKey: keyExp)
         defaults.set(currentLevel, forKey: keyLevel)
+        defaults.set(totalTasksCompleted, forKey: keyTotalTasks)
         defaults.set(unlockedAchievementIds.joined(separator: ","), forKey: keyAchievements)
         
         // Sync to cloud?
@@ -185,7 +196,8 @@ final class LevelManager {
             await AuthManager.shared.updateGamification(
                 exp: currentExp, 
                 level: currentLevel, 
-                achievements: unlockedAchievementIds.joined(separator: ",")
+                achievements: unlockedAchievementIds.joined(separator: ","),
+                totalTasks: totalTasksCompleted
             )
         }
     }
@@ -193,11 +205,15 @@ final class LevelManager {
     // MARK: - Cloud Sync
     
     /// Merges Cloud data with Local data robustly (Safety Checks)
-    func importFromCloud(exp: Int, level: Int, achievementsString: String) {
+    func importFromCloud(exp: Int, level: Int, achievementsString: String, totalTasks: Int = 0) {
         // 1. Gamification Strategy: Always take the highest value to prevent data loss
         // (e.g., if local has 500xp but cloud has 400xp, keep 500xp)
         if exp > self.currentExp {
             self.currentExp = exp
+        }
+        
+        if totalTasks > self.totalTasksCompleted {
+            self.totalTasksCompleted = totalTasks
         }
         
         // Recalculate Level locally based on max XP to ensure consistency with new Curve
@@ -217,15 +233,19 @@ final class LevelManager {
     
     /// Clears all local gamification data (Used on Sign Out)
     func resetLocalData() {
+        print("LevelManager: Resetting local data...")
         currentExp = 0
         currentLevel = 1
+        totalTasksCompleted = 0
         unlockedAchievementIds = []
         
         let defaults = UserDefaults.standard
         defaults.removeObject(forKey: keyExp)
         defaults.removeObject(forKey: keyLevel)
+        defaults.removeObject(forKey: keyTotalTasks)
         defaults.removeObject(forKey: keyAchievements)
-        defaults.synchronize()
+        let success = defaults.synchronize()
+        print("LevelManager: Reset complete. Success: \(success)")
     }
 }
 

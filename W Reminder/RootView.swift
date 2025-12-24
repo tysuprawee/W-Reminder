@@ -87,6 +87,12 @@ struct RootView: View {
                     .zIndex(100) // Ensure it's on top
             }
             
+            if LevelManager.shared.showLevelUpCelebration {
+                LevelUpCelebrationView(level: LevelManager.shared.currentLevel)
+                    .transition(.opacity.combined(with: .scale(scale: 1.1)))
+                    .zIndex(100)
+            }
+            
             if syncManager.isSyncing {
                 SyncLoadingView()
             }
@@ -244,6 +250,7 @@ struct SettingsView: View {
     @State private var authManager = AuthManager.shared
     @State private var showLoginSheet = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
+    @State private var showLogoutAlert = false
         
     var body: some View {
         NavigationStack {
@@ -261,29 +268,16 @@ struct SettingsView: View {
                             Spacer()
                             Button("Sign Out", role: .destructive) {
                                 Task {
-                                    // 1. Sync one last time (Backup) - attempt but don't block forever
-                                    // In a real app we might want a timeout here
-                                    await SyncManager.shared.sync(container: modelContext.container)
+                                    // 1. Sync one last time (Backup)
+                                    try? modelContext.save()
+                                    let success = await SyncManager.shared.sync(container: modelContext.container)
                                     
-                                    // 2. Wipe local data (Clean Slate)
-                                    do {
-                                        try SyncManager.shared.deleteLocalData(context: modelContext)
-                                    } catch {
-                                        print("Error deleting local data: \(error)")
+                                    if !success {
+                                        showLogoutAlert = true
+                                        return
                                     }
                                     
-                                    LevelManager.shared.resetLocalData()
-                                    StreakManager.shared.resetLocalData()
-                                    
-                                    // 3. Sign Out
-                                    await authManager.signOut()
-                                    
-                                    // 4. Reset Welcome State
-                                    await MainActor.run {
-                                        withAnimation {
-                                            hasSeenWelcome = false
-                                        }
-                                    }
+                                    await performSignOut()
                                 }
                             }
                             .buttonStyle(.bordered)
@@ -427,9 +421,49 @@ struct SettingsView: View {
             .sheet(isPresented: $showLoginSheet) {
                 LoginView()
             }
+            .alert("Sync Failed", isPresented: $showLogoutAlert) {
+                Button("Force Sign Out", role: .destructive) {
+                    Task { await performSignOut() }
+                }
+                Button("Retry Sync") {
+                    Task {
+                        let success = await SyncManager.shared.sync(container: modelContext.container)
+                        if success {
+                            await performSignOut()
+                        } else {
+                            showLogoutAlert = true
+                        }
+                    }
+                }
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Your data could not be synced to the cloud. Signing out now may result in data loss. Do you want to force sign out?")
+            }
         }
     }
 
+    private func performSignOut() async {
+        // 2. Wipe local data (Clean Slate)
+        do {
+            try SyncManager.shared.deleteLocalData(context: modelContext)
+        } catch {
+            print("Error deleting local data: \(error)")
+        }
+        
+        LevelManager.shared.resetLocalData()
+        StreakManager.shared.resetLocalData()
+        
+        // 3. Sign Out
+        await authManager.signOut()
+        
+        // 4. Reset Welcome State
+        await MainActor.run {
+            withAnimation {
+                hasSeenWelcome = false
+            }
+        }
+    }
+    
     private var statusLabel: String {
         switch notificationStatus {
         case .authorized, .provisional:

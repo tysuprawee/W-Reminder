@@ -145,7 +145,8 @@ final class AuthManager {
                     LevelManager.shared.importFromCloud(
                         exp: exp, 
                         level: lvl, 
-                        achievementsString: profile.achievements ?? ""
+                        achievementsString: profile.achievements ?? "",
+                        totalTasks: profile.totalTasks ?? 0
                     )
                 }
                 
@@ -182,13 +183,14 @@ final class AuthManager {
         }
     }
     
-    func updateGamification(exp: Int, level: Int, achievements: String) async {
+    func updateGamification(exp: Int, level: Int, achievements: String, totalTasks: Int) async {
         guard let userId = user?.id else { return }
         
         let update = ProfileGamificationUpdate(
             experiencePoints: exp,
             level: level,
-            achievements: achievements
+            achievements: achievements,
+            totalTasks: totalTasks
         )
         
         do {
@@ -248,6 +250,7 @@ struct Profile: Codable {
     let experiencePoints: Int?
     let level: Int?
     let achievements: String?
+    let totalTasks: Int?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -261,6 +264,7 @@ struct Profile: Codable {
         case experiencePoints = "experience_points"
         case level
         case achievements
+        case totalTasks = "total_tasks"
     }
 }
 
@@ -288,10 +292,12 @@ struct ProfileGamificationUpdate: Encodable {
     let experiencePoints: Int
     let level: Int
     let achievements: String
+    let totalTasks: Int
     
     enum CodingKeys: String, CodingKey {
         case experiencePoints = "experience_points"
         case level
         case achievements
+        case totalTasks = "total_tasks"
     }
 }

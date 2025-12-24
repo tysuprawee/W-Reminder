@@ -124,6 +124,8 @@ struct MilestoneDetailView: View {
                         .padding(.top, -8) // Tighten spacing
                 }
             }
+            .disabled(isConfettiActive) // Disable interaction during celebration
+
             
             // Confetti Overlay
             if isConfettiActive {
@@ -175,6 +177,7 @@ struct MilestoneDetailView: View {
                          .background(.ultraThinMaterial)
                          .clipShape(Circle())
                  }
+                 .disabled(isConfettiActive)
              }
              
              ToolbarItem(placement: .topBarTrailing) {
@@ -193,6 +196,8 @@ struct MilestoneDetailView: View {
                              .clipShape(Circle())
                      }
                  }
+                 .disabled(isConfettiActive)
+
              }
         }
         .sheet(isPresented: $showingEditSheet) {
@@ -445,6 +450,12 @@ struct MilestoneDetailView: View {
                      // NOW update the model
                      checklist.isDone = true
                      checklist.completedAt = Date()
+                     checklist.updatedAt = Date()
+
+                     
+                     // Cancel Notifications for this item since it's done
+                     NotificationManager.shared.cancelNotification(for: checklist)
+                     
                      try? modelContext.save()
                      WidgetCenter.shared.reloadAllTimelines()
                      Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
@@ -454,6 +465,7 @@ struct MilestoneDetailView: View {
              // Mark Undone (Immediate)
              checklist.isDone = false
              checklist.completedAt = nil
+             checklist.updatedAt = Date()
              LevelManager.shared.addExp(-xpCompletionBonus)
              
              try? modelContext.save()
@@ -516,6 +528,8 @@ struct MilestoneDetailView: View {
         checklist.tags = tags
         checklist.recurrenceRule = recurrenceRule
         checklist.isDone = isDone // If they toggle done in edit sheet
+        checklist.updatedAt = Date() // Sync timestamp
+
         
         // Sync Items Logic (Safe Diff)
         let incomingIDs = Set(items.map { $0.id })

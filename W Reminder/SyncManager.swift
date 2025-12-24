@@ -9,6 +9,16 @@ import Foundation
 import SwiftData
 import Supabase
 
+// Payload Struct for Main Actor Data Capture
+struct PushPayload {
+    let tags: [SyncManager.CloudTag]
+    let checklists: [CloudSimpleChecklist]
+    let checklistTags: [CloudChecklistTag]
+    let milestones: [CloudMilestone]
+    let milestoneItems: [CloudMilestoneItem]
+    let milestoneTags: [CloudMilestoneTag]
+}
+
 @MainActor
 @Observable
 final class SyncManager {
@@ -89,11 +99,12 @@ final class SyncManager {
     // MARK: - Main Sync Loop
     
     // Track current sync task to allow waiting
-    private var syncTask: Task<Void, Never>?
+    private var syncTask: Task<Bool, Never>?
 
-    func sync(container: ModelContainer, silent: Bool = false) async {
+    @discardableResult
+    func sync(container: ModelContainer, silent: Bool = false) async -> Bool {
         // 1. Check if a sync is already running. If so, wait for it.
-        let existingTask: Task<Void, Never>? = await MainActor.run {
+        let existingTask: Task<Bool, Never>? = await MainActor.run {
             // If this request is NOT silent, ensure we show the loading UI immediately
             // even if we are attaching to an existing background task.
             if !silent {
@@ -106,13 +117,12 @@ final class SyncManager {
         
         if let existingTask {
             print("Sync: Already in progress, waiting...")
-            await existingTask.value
-            return
+            return await existingTask.value
         }
 
         // 2. Start new sync task
         let task = Task {
-             await performSync(container: container)
+             return await performSync(container: container)
         }
         
         await MainActor.run {
@@ -122,53 +132,155 @@ final class SyncManager {
             }
         }
         
-        await task.value
+        let result = await task.value
         
         await MainActor.run {
             self.syncTask = nil
             self.isSyncing = false
         }
+        
+        return result
     }
     
-    nonisolated private func performSync(container: ModelContainer) async {
+    nonisolated private func performSync(container: ModelContainer) async -> Bool {
         // Access AuthManager on MainActor to be safe
-        let (shouldProceed, uid): (Bool, UUID?) = await MainActor.run {
-             guard let user = AuthManager.shared.user else { return (false, nil) }
-             return (true, user.id)
+        let (shouldProceed, uid, payload): (Bool, UUID?, PushPayload?) = await MainActor.run {
+             guard let user = AuthManager.shared.user else { return (false, nil, nil) }
+             // Capture Payload from Main Context
+             do {
+                 try container.mainContext.save()
+                 let p = try self.preparePushPayload(context: container.mainContext, userId: user.id)
+                 return (true, user.id, p)
+             } catch {
+                 print("Error preparing payload: \(error)")
+                 return (false, nil, nil)
+             }
         }
         
-        guard shouldProceed, let userId = uid else { return }
+        guard shouldProceed, let userId = uid, let payload = payload else { return false }
         
-        await MainActor.run { print("Sync: Starting for user \(userId)...") }
+        await MainActor.run { 
+            print("Sync: Starting for user \(userId)...") 
+        }
         
-        // Perform sync in background
-        // Create a new context for this background work
-        let context = ModelContext(container)
-        context.autosaveEnabled = false // We handle saves explicitly
+        // 1. BACKGROUND PHASE: Push Changes & Fetch Cloud Data
+        // We use a background context only for Deletions and possibly other ops, but Push is now driven by Payload.
+        let bgContext = ModelContext(container)
+        bgContext.autosaveEnabled = false
         
         do {
-            // 0. Process Deletions (Critical Step)
-            try await processDeletions(context: context)
+            // A. Process Deletions
+            try await processDeletions(context: bgContext)
             
-            // 1. Sync Tags (Push & Pull)
-            let tagsMap = try await syncTags(context: context, userId: userId)
+            // B. Push Local Changes (Using Payload)
+            try await pushTags(payload: payload, userId: userId)
+            try await pushChecklists(payload: payload, userId: userId)
+            try await pushMilestones(payload: payload, userId: userId)
             
-            // 2. Sync Checklists (Push & Pull)
-            try await syncChecklists(context: context, userId: userId, tagsMap: tagsMap)
+            // C. Fetch Cloud Data
+            async let cloudTagsTask: [CloudTag] = client.from("tags").select().execute().value
+            async let cloudSimpleListsTask: [CloudSimpleChecklist] = client.from("simple_checklists").select().execute().value
+            async let cloudSimpleLinksTask: [CloudChecklistTag] = client.from("checklist_tags").select().execute().value
             
-            // 3. Sync Milestones (Push & Pull)
-            try await syncMilestones(context: context, userId: userId, tagsMap: tagsMap)
+            async let cloudMilestonesTask: [CloudMilestone] = client.from("milestones").select().execute().value
+            async let cloudMilestoneItemsTask: [CloudMilestoneItem] = client.from("milestone_items").select().execute().value
+            async let cloudMilestoneLinksTask: [CloudMilestoneTag] = client.from("milestone_tags").select().execute().value
             
-            await MainActor.run {
-                self.lastSyncTime = Date()
-                print("Sync: Completed successfully.")
+            let (cloudTags, cloudSimpleLists, cloudSimpleLinks, cloudMilestones, cloudMilestoneItems, cloudMilestoneLinks) = try await (cloudTagsTask, cloudSimpleListsTask, cloudSimpleLinksTask, cloudMilestonesTask, cloudMilestoneItemsTask, cloudMilestoneLinksTask)
+
+            // 2. MAIN ACTOR PHASE: Merge logic
+            // We apply changes to the MAIN CONTEXT to ensure we respect the absolute latest UI state.
+            return await MainActor.run {
+                let mainContext = container.mainContext
+                do {
+                    let tagsMap = try mergeTags(context: mainContext, cloudTags: cloudTags)
+                    try mergeChecklists(context: mainContext, cloudLists: cloudSimpleLists, cloudLinks: cloudSimpleLinks, tagsMap: tagsMap)
+                    try mergeMilestones(context: mainContext, cloudLists: cloudMilestones, cloudItems: cloudMilestoneItems, cloudLinks: cloudMilestoneLinks, tagsMap: tagsMap)
+                    
+                    try mainContext.save()
+                    print("Sync: Completed & Merged on Main Context.")
+                    self.lastSyncTime = Date()
+                    return true
+                } catch {
+                    print("Sync Merge Error: \(error)")
+                    self.errorMessage = error.localizedDescription
+                    return false
+                }
             }
+            
         } catch {
             await MainActor.run {
-                print("Sync Error: \(error)")
+                print("Sync Push/Fetch Error: \(error)")
                 self.errorMessage = error.localizedDescription
             }
+            return false
         }
+    }
+    
+    @MainActor
+    private func preparePushPayload(context: ModelContext, userId: UUID) throws -> PushPayload {
+        // Fetch all data from Main Context
+        let tags = try context.fetch(FetchDescriptor<Tag>())
+        let tagDTOs = tags.map { CloudTag(id: $0.id, userId: userId, name: $0.name, colorHex: $0.colorHex) }
+        
+        let checklists = try context.fetch(FetchDescriptor<SimpleChecklist>())
+        var checklistDTOs: [CloudSimpleChecklist] = []
+        var checklistTagDTOs: [CloudChecklistTag] = []
+        
+        // Create a Set of valid Tag IDs to prevent FK violations
+        let validTagIds = Set(tagDTOs.map { $0.id })
+        
+        for list in checklists {
+            checklistDTOs.append(CloudSimpleChecklist(
+                id: list.id, userId: userId, title: list.title, notes: list.notes,
+                dueDate: list.dueDate, remind: list.remind, isDone: list.isDone,
+                isStarred: list.isStarred, userOrder: list.userOrder,
+                recurrenceRule: list.recurrenceRule, completedAt: list.completedAt,
+                updatedAt: list.updatedAt
+            ))
+            
+            // Deduplicate & Validate tags
+            let uniqueTags = Set(list.tags)
+            for tag in uniqueTags {
+                if validTagIds.contains(tag.id) {
+                    checklistTagDTOs.append(CloudChecklistTag(checklistId: list.id, tagId: tag.id))
+                }
+            }
+        }
+        
+        let milestones = try context.fetch(FetchDescriptor<Checklist>())
+        var milestoneDTOs: [CloudMilestone] = []
+        var milestoneTagDTOs: [CloudMilestoneTag] = []
+        var milestoneItemDTOs: [CloudMilestoneItem] = []
+        
+        for list in milestones {
+            milestoneDTOs.append(CloudMilestone(
+                id: list.id, userId: userId, title: list.title, notes: list.notes,
+                createdAt: list.createdAt, dueDate: list.dueDate, remind: list.remind,
+                isDone: list.isDone, isStarred: list.isStarred, userOrder: list.userOrder, recurrenceRule: list.recurrenceRule, completedAt: list.completedAt, updatedAt: list.updatedAt
+            ))
+            
+            // Deduplicate & Validate tags
+            let uniqueTags = Set(list.tags)
+            for tag in uniqueTags {
+                if validTagIds.contains(tag.id) {
+                    milestoneTagDTOs.append(CloudMilestoneTag(milestoneId: list.id, tagId: tag.id))
+                }
+            }
+            
+            for item in list.items {
+                milestoneItemDTOs.append(CloudMilestoneItem(id: item.id, milestoneId: list.id, text: item.text, isDone: item.isDone, position: item.position))
+            }
+        }
+        
+        return PushPayload(
+            tags: tagDTOs,
+            checklists: checklistDTOs,
+            checklistTags: checklistTagDTOs,
+            milestones: milestoneDTOs,
+            milestoneItems: milestoneItemDTOs,
+            milestoneTags: milestoneTagDTOs
+        )
     }
     
     // MARK: - Deletion Logic
@@ -193,7 +305,6 @@ final class SyncManager {
         
         let record = DeletedRecord(targetID: id, table: table)
         context.insert(record)
-        // Note: The caller is responsible for actually deleting the object and saving the context
     }
 
     nonisolated private func processDeletions(context: ModelContext) async throws {
@@ -201,388 +312,304 @@ final class SyncManager {
         guard !deletedRecords.isEmpty else { return }
         
         print("Sync: Processing \(deletedRecords.count) deletions...")
-        
         for record in deletedRecords {
-             // If we fail here, the record remains and we retry next time.
-             // We can optimize by batching, but one-by-one is safer for now.
-             
              try await client.from(record.table).delete().eq("id", value: record.targetID).execute()
-             
-             // After successful cloud delete, remove the tombstone
              context.delete(record)
         }
-        
         try context.save()
     }
     
-    // MARK: - Tags Sync
+    // MARK: - Push Logic (Background)
     
-    /// Returns a map of CloudID -> LocalTag for relationship linking
-
-    // Run on background (non-isolated)
-    nonisolated private func syncTags(context: ModelContext, userId: UUID) async throws -> [UUID: Tag] {
-        // A. PUSH Local Tags (dumb upsert for now)
-        let localTags = try context.fetch(FetchDescriptor<Tag>())
-        for tag in localTags {
-            // We use the Tag's Name as the unique key for merging if ID is missing locally?
-            // Actually, we should probably stick to ID if we tracked it.
-            // Since local SwiftData models generated their own UUIDs, we assume these are the same as Cloud UUIDs if synced.
-            // If they are new local tags, they have a UUID. We push that.
-            
-            let dto = CloudTag(
-                id: tag.id, // Use local UUID
-                userId: userId,
-                name: tag.name,
-                colorHex: tag.colorHex
-            )
+    nonisolated private func pushTags(payload: PushPayload, userId: UUID) async throws {
+        for dto in payload.tags {
             try await client.from("tags").upsert(dto).execute()
         }
+    }
+    
+    nonisolated private func pushChecklists(payload: PushPayload, userId: UUID) async throws {
+        for dto in payload.checklists {
+            try await client.from("simple_checklists").upsert(dto).execute()
+            
+            // Delete existing tags for this checklist
+            try await client.from("checklist_tags").delete().eq("checklist_id", value: dto.id).execute()
+        }
+        // Insert all new links (batch if possible, but singular for simplicity/safety)
+        // Wait, deleting per checklist is fine.
+        // But invalidating links?
+        // We need to filter links for this checklist?
+        // Ah, optimizing:
+        // We can just iterate the `checklistTags` for the current checklist ID.
         
-        // B. PULL Cloud Tags
-        let cloudTags: [CloudTag] = try await client
-            .from("tags")
-            .select() // Select all
-            .execute()
-            .value
+        // Better:
+        let linksByChecklist = Dictionary(grouping: payload.checklistTags, by: { $0.checklistId })
         
+        for dto in payload.checklists {
+            // Already upserted dto
+            // Relationships:
+            if let specificLinks = linksByChecklist[dto.id], !specificLinks.isEmpty {
+                 try await client.from("checklist_tags").insert(specificLinks).execute()
+            }
+        }
+    }
+    
+    nonisolated private func pushMilestones(payload: PushPayload, userId: UUID) async throws {
+        let linksByMilestone = Dictionary(grouping: payload.milestoneTags, by: { $0.milestoneId })
+        let itemsByMilestone = Dictionary(grouping: payload.milestoneItems, by: { $0.milestoneId })
+
+        for dto in payload.milestones {
+            try await client.from("milestones").upsert(dto).execute()
+            
+            // Tags
+            try await client.from("milestone_tags").delete().eq("milestone_id", value: dto.id).execute()
+            if let specificLinks = linksByMilestone[dto.id], !specificLinks.isEmpty {
+                try await client.from("milestone_tags").insert(specificLinks).execute()
+            }
+            
+            // Items
+            try await client.from("milestone_items").delete().eq("milestone_id", value: dto.id).execute()
+            if let specificItems = itemsByMilestone[dto.id], !specificItems.isEmpty {
+                try await client.from("milestone_items").insert(specificItems).execute()
+            }
+        }
+    }
+    
+    // MARK: - Merge Logic (Main Actor)
+    
+    @MainActor
+    private func mergeTags(context: ModelContext, cloudTags: [CloudTag]) throws -> [UUID: Tag] {
+        let localTags = try context.fetch(FetchDescriptor<Tag>())
         var tagsMap: [UUID: Tag] = [:]
         
         for cloudTag in cloudTags {
-            // Find by ID first
             let tagID = cloudTag.id
-            var existing: Tag?
-            
-            // Fetch by ID
-            if let found = localTags.first(where: { $0.id == tagID }) {
-                existing = found
-            }
-            
-            if let existing {
-                // Update properties
+            if let existing = localTags.first(where: { $0.id == tagID }) {
                 if existing.name != cloudTag.name { existing.name = cloudTag.name }
                 if existing.colorHex != cloudTag.colorHex { existing.colorHex = cloudTag.colorHex }
                 tagsMap[tagID] = existing
             } else {
-                // Insert new
                 let newTag = Tag(id: tagID, name: cloudTag.name, colorHex: cloudTag.colorHex)
-                // Force the ID to match cloud (SwiftData @Model classes are weird about setting ID after init if strictly defined, but usually OK)
-                // Actually, Tag has implicit ID. We verify if we can set it.
-                // If not, we rely on standard init.
-                // But we MUST match IDs for relationships.
-                // SwiftData `id` is usually fine to match if we use `Attribute(.unique)` logic.
-                // Our Tag model definition: `@Model final class Tag { ... }` -> `id` is implicitly added by SwiftData.
-                // We cannot easily overwrite the persistent backing data ID.
-                // WORKAROUND: We assume for this demo that we just CREATE. relationships might break if IDs drift.
-                // IDEALLY: We should add an explicit `id: UUID` property to our SwiftData models designated as primary key.
-                // Let's assume the user's `Tag` model has a mutable ID or we just match by name.
-                
-                // For this implementation, let's assume we can rely on Name for Tags since they act like categories.
-                // But for relationships, we need the Object.
-                
                 context.insert(newTag)
                 tagsMap[tagID] = newTag
             }
         }
-        
-        try context.save()
         return tagsMap
     }
     
-    // MARK: - Checklists Sync
-    
-    // Run on background
-    nonisolated private func syncChecklists(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
-        // A. PUSH Local Checklists
+    @MainActor
+    private func mergeChecklists(context: ModelContext, cloudLists: [CloudSimpleChecklist], cloudLinks: [CloudChecklistTag], tagsMap: [UUID: Tag]) throws {
         let localLists = try context.fetch(FetchDescriptor<SimpleChecklist>())
-        for list in localLists {
-            let dto = CloudSimpleChecklist(
-                id: list.id,
-                userId: userId,
-                title: list.title,
-                notes: list.notes,
-                dueDate: list.dueDate,
-                remind: list.remind,
-                isDone: list.isDone,
-                isStarred: list.isStarred,
-                userOrder: list.userOrder,
-                recurrenceRule: list.recurrenceRule,
-                completedAt: list.completedAt
-            )
-            try await client.from("simple_checklists").upsert(dto).execute()
-            
-            // Push Junctions (Links)
-            // First delete existing links for this checklist in cloud? Or safely upsert?
-            // Easiest is to delete all for this checklist and re-add.
-            try await client.from("checklist_tags").delete().eq("checklist_id", value: list.id).execute()
-            
-            if !list.tags.isEmpty {
-                let links = list.tags.map { tag in
-                    CloudChecklistTag(checklistId: list.id, tagId: tag.id) // Assuming tag.id matches cloud id
-                }
-                try await client.from("checklist_tags").insert(links).execute()
-            }
-        }
         
-        // B. PULL Cloud Checklists
-        let cloudLists: [CloudSimpleChecklist] = try await client
-            .from("simple_checklists")
-            .select()
-            .execute()
-            .value
-            
-        // Fetch All Links first to optimize
-        let cloudLinks: [CloudChecklistTag] = try await client
-            .from("checklist_tags")
-            .select()
-            .execute()
-            .value
-            
-        // Group links by ChecklistID
+        // Prevent Resurrection: Ignore items we have explicitly deleted locally
+        let deletedRecords = try context.fetch(FetchDescriptor<DeletedRecord>())
+        let deletedIDs = Set(deletedRecords.map { $0.targetID })
+        
         let linksByChecklist = Dictionary(grouping: cloudLinks, by: { $0.checklistId })
         
         for cloudList in cloudLists {
+            guard !deletedIDs.contains(cloudList.id) else { continue }
+            
             let listID = cloudList.id
-            var existing: SimpleChecklist?
-            
-            if let found = localLists.first(where: { $0.id == listID }) {
-                existing = found
-            }
-            
             let listToUpdate: SimpleChecklist
             
-            if let existing {
+            if let existing = localLists.first(where: { $0.id == listID }) {
                 listToUpdate = existing
-                // Update fields
-                listToUpdate.title = cloudList.title
-                listToUpdate.notes = cloudList.notes
-                listToUpdate.dueDate = cloudList.dueDate
-                listToUpdate.remind = cloudList.remind
-                listToUpdate.isDone = cloudList.isDone
-                listToUpdate.isStarred = cloudList.isStarred
-                listToUpdate.userOrder = cloudList.userOrder
-                listToUpdate.recurrenceRule = cloudList.recurrenceRule
-                listToUpdate.completedAt = cloudList.completedAt
+                
+                // CONFLICT STRATEGY: TIMESTAMP BASED
+                // If Cloud is Newer -> Overwrite Local
+                // If Local is Newer (or equal) -> Keep Local
+                let cloudUpdated = cloudList.updatedAt ?? .distantPast
+                let localUpdated = listToUpdate.updatedAt
+                
+                // Allow a small buffer? No, strict > is usually best, unless clocks drift.
+                // Assuming clocks are reasonable.
+                
+                if cloudUpdated > localUpdated {
+                    listToUpdate.title = cloudList.title
+                    listToUpdate.notes = cloudList.notes
+                    listToUpdate.dueDate = cloudList.dueDate
+                    
+                    // Logic: If user completed it locally, but cloud is newer and says not completed...
+                    // Sticky Done might still apply if we want to be safe, but strictly timestamp should win.
+                    // However, for "Done" specifically, users hate it unchecking.
+                    // Let's stick to timestamp win for now.
+                    listToUpdate.isDone = cloudList.isDone
+                } else {
+                    // Local is newer. Keep Local.
+                    // EXCEPT: If we want to merge IsDone specially?
+                    // Previous sticky logic:
+                    if listToUpdate.isDone && !cloudList.isDone {
+                         // Keep Local
+                    } else if cloudUpdated > localUpdated {
+                         // Only overwrite if cloud is genuinely newer
+                         // (Already handled in if block above)
+                    }
+                }
+                
+                // Always sync these for now or apply timestamp logic?
+                // Apply timestamp logic to everything.
+                if cloudUpdated > localUpdated {
+                    listToUpdate.remind = cloudList.remind
+                    listToUpdate.isStarred = cloudList.isStarred
+                    listToUpdate.userOrder = cloudList.userOrder
+                    listToUpdate.recurrenceRule = cloudList.recurrenceRule
+                    listToUpdate.completedAt = cloudList.completedAt
+                    listToUpdate.updatedAt = cloudUpdated // Sync the timestamp!
+                    
+                    // Relationships (Tags) - moved inside timestamp check to prevent overwriting local edits
+                    if let links = linksByChecklist[listID] {
+                        var newTags: [Tag] = []
+                        for link in links {
+                            if let tag = tagsMap[link.tagId] {
+                                newTags.append(tag)
+                            }
+                        }
+                        listToUpdate.tags = newTags
+                    } else {
+                        listToUpdate.tags = []
+                    }
+                }
+
             } else {
                 let newList = SimpleChecklist(
-                    title: cloudList.title,
-                    notes: cloudList.notes,
-                    dueDate: cloudList.dueDate,
-                    remind: cloudList.remind,
-                    isDone: cloudList.isDone,
-                    tags: [], // Will set below
-                    isStarred: cloudList.isStarred,
-                    userOrder: cloudList.userOrder,
-                    recurrenceRule: cloudList.recurrenceRule,
-                    completedAt: cloudList.completedAt
+                    title: cloudList.title, notes: cloudList.notes, dueDate: cloudList.dueDate,
+                    remind: cloudList.remind, isDone: cloudList.isDone, tags: [],
+                    isStarred: cloudList.isStarred, userOrder: cloudList.userOrder,
+                    recurrenceRule: cloudList.recurrenceRule, completedAt: cloudList.completedAt,
+                    updatedAt: cloudList.updatedAt ?? Date()
                 )
-                // We need to ensure ID matches.
-                // SwiftData allows setting `id` if we define it in init or property.
-                // Our SimpleChecklist has `var id: UUID = UUID()` property. We can overwrite it.
                 newList.id = listID
-                
                 context.insert(newList)
                 listToUpdate = newList
             }
-            
-            // Update Relationships
-            if let links = linksByChecklist[listID] {
-                var newTags: [Tag] = []
-                for link in links {
-                    // Find the tag locally (we synced tags first)
-                    // We must find by ID.
-                    // Since specific `tagsMap` might be incomplete if we rely on names,
-                    // we better iterate all local tags or use the map if strict.
-                    // Let's use `tagsMap` assuming it has the cloud IDs.
-                    if let tag = tagsMap[link.tagId] {
-                        newTags.append(tag)
-                    } else {
-                         // Fallback: search context
-                         // (Optimization: could pre-fetch all tags)
-                    }
-                }
-                listToUpdate.tags = newTags
-            } else {
-                listToUpdate.tags = []
-            }
         }
-        
-        try context.save()
     }
 
-// MARK: - Milestones Sync
-
-    // Run on background
-    nonisolated private func syncMilestones(context: ModelContext, userId: UUID, tagsMap: [UUID: Tag]) async throws {
-        // A. PUSH Local Milestones
-        let localLists = try context.fetch(FetchDescriptor<Checklist>()) // Checklist = Milestone
-        for list in localLists {
-            let dto = CloudMilestone(
-                id: list.id,
-                userId: userId,
-                title: list.title,
-                notes: list.notes,
-                createdAt: list.createdAt,
-                dueDate: list.dueDate,
-                remind: list.remind,
-                isDone: list.isDone,
-                isStarred: list.isStarred,
-                userOrder: list.userOrder,
-                recurrenceRule: list.recurrenceRule,
-                completedAt: list.completedAt
-            )
-            try await client.from("milestones").upsert(dto).execute()
-            
-            // Push Junctions (Tags)
-            try await client.from("milestone_tags").delete().eq("milestone_id", value: list.id).execute()
-            if !list.tags.isEmpty {
-                let links = list.tags.map { tag in
-                    CloudMilestoneTag(milestoneId: list.id, tagId: tag.id)
-                }
-                try await client.from("milestone_tags").insert(links).execute()
-            }
-            
-            // Push Items (Sub-tasks)
-            // Strategy: Delete all cloud items for this milestone and re-insert local ones (simplest sync)
-            try await client.from("milestone_items").delete().eq("milestone_id", value: list.id).execute()
-            
-            if !list.items.isEmpty {
-                let itemDTOs = list.items.map { item in
-                    CloudMilestoneItem(
-                        id: item.id,
-                        milestoneId: list.id,
-                        text: item.text,
-                        isDone: item.isDone,
-                        position: item.position
-                    )
-                }
-                try await client.from("milestone_items").insert(itemDTOs).execute()
-            }
-        }
+    
+    @MainActor
+    private func mergeMilestones(context: ModelContext, cloudLists: [CloudMilestone], cloudItems: [CloudMilestoneItem], cloudLinks: [CloudMilestoneTag], tagsMap: [UUID: Tag]) throws {
+        let localLists = try context.fetch(FetchDescriptor<Checklist>())
         
-        // B. PULL Cloud Milestones
-        let cloudLists: [CloudMilestone] = try await client.from("milestones").select().execute().value
-        let cloudItems: [CloudMilestoneItem] = try await client.from("milestone_items").select().execute().value
-        let cloudLinks: [CloudMilestoneTag] = try await client.from("milestone_tags").select().execute().value
+        // Prevent Resurrection
+        let deletedRecords = try context.fetch(FetchDescriptor<DeletedRecord>())
+        let deletedIDs = Set(deletedRecords.map { $0.targetID })
         
         let itemsByMilestone = Dictionary(grouping: cloudItems, by: { $0.milestoneId })
         let linksByMilestone = Dictionary(grouping: cloudLinks, by: { $0.milestoneId })
         
         for cloudList in cloudLists {
+            guard !deletedIDs.contains(cloudList.id) else { continue }
+            
             let listID = cloudList.id
-            var existing: Checklist?
-            
-            if let found = localLists.first(where: { $0.id == listID }) {
-                existing = found
-            }
-            
+
             let listToUpdate: Checklist
             
-            if let existing {
+            if let existing = localLists.first(where: { $0.id == listID }) {
                 listToUpdate = existing
-                listToUpdate.title = cloudList.title
-                listToUpdate.notes = cloudList.notes
+                
+                // CONFLICT STRATEGY: TIMESTAMP BASED
+                let cloudUpdated = cloudList.updatedAt ?? .distantPast
+                let localUpdated = listToUpdate.updatedAt
+                
+                if cloudUpdated > localUpdated {
+                    listToUpdate.title = cloudList.title
+                    listToUpdate.notes = cloudList.notes
+                    listToUpdate.dueDate = cloudList.dueDate
+                    listToUpdate.remind = cloudList.remind
+                    listToUpdate.isStarred = cloudList.isStarred
+                    listToUpdate.userOrder = cloudList.userOrder
+                    listToUpdate.recurrenceRule = cloudList.recurrenceRule
+                    listToUpdate.completedAt = cloudList.completedAt
+                    listToUpdate.isDone = cloudList.isDone
+                    listToUpdate.updatedAt = cloudUpdated
+                }
+                
+                // Sticky Done logic (optional backup)
+                if listToUpdate.isDone && !cloudList.isDone && localUpdated >= cloudUpdated {
+                    // Keep Local
+                }
+                
                 listToUpdate.createdAt = cloudList.createdAt
-                listToUpdate.dueDate = cloudList.dueDate
-                listToUpdate.remind = cloudList.remind
-                listToUpdate.isDone = cloudList.isDone
-                listToUpdate.isStarred = cloudList.isStarred
-                listToUpdate.userOrder = cloudList.userOrder
-                listToUpdate.recurrenceRule = cloudList.recurrenceRule
-                listToUpdate.completedAt = cloudList.completedAt
+
             } else {
                 let newList = Checklist(
-                    title: cloudList.title,
-                    notes: cloudList.notes,
-                    dueDate: cloudList.dueDate,
-                    remind: cloudList.remind,
-                    items: [],
-                    tags: [],
-                    isStarred: cloudList.isStarred,
-                    userOrder: cloudList.userOrder,
-                    recurrenceRule: cloudList.recurrenceRule,
-                    completedAt: cloudList.completedAt
+                    title: cloudList.title, notes: cloudList.notes, dueDate: cloudList.dueDate,
+                    remind: cloudList.remind, items: [], tags: [], isStarred: cloudList.isStarred,
+                    userOrder: cloudList.userOrder, recurrenceRule: cloudList.recurrenceRule, completedAt: cloudList.completedAt,
+                    updatedAt: cloudList.updatedAt ?? Date()
                 )
                 newList.id = listID
-                newList.createdAt = cloudList.createdAt // Helper init might overwrite, so set explicitly
+                newList.createdAt = cloudList.createdAt
                 newList.isDone = cloudList.isDone
-                
                 context.insert(newList)
                 listToUpdate = newList
             }
             
-            // Sync Items
-            let currentCloudItems = itemsByMilestone[listID] ?? []
-            // Simplest Pull Strategy: Replace all local items with cloud items
-            // (Note: This overwrites local changes if they weren't pushed first. True merge is complex.)
-            
-            // Delete existing local items not in cloud? Or just wipe and recreate?
-            // Safer: Update existing by ID, Add new, Remove missing.
-            
-            var processedItemIDs = Set<UUID>()
-            
-            for cloudItem in currentCloudItems {
-                processedItemIDs.insert(cloudItem.id)
+            // Merge Items (Subtasks) - Trust Cloud for now (complex to track timestamps per item)
+            // Or only if Cloud Milestone is newer?
+            let cloudUpdated = cloudList.updatedAt ?? .distantPast
+            let localUpdated = listToUpdate.updatedAt
+
+            if cloudUpdated > localUpdated {
+                let currentCloudItems = itemsByMilestone[listID] ?? []
+                var processedItemIDs = Set<UUID>()
                 
-                if let existingItem = listToUpdate.items.first(where: { $0.id == cloudItem.id }) {
-                    existingItem.text = cloudItem.text
-                    existingItem.isDone = cloudItem.isDone
-                    existingItem.position = cloudItem.position
-                } else {
-                    let newItem = ChecklistItem(
-                        text: cloudItem.text,
-                        isDone: cloudItem.isDone,
-                        position: cloudItem.position
-                    )
-                    newItem.id = cloudItem.id
-                    newItem.checklist = listToUpdate // Link
-                    // listToUpdate.items.append(newItem) // SwiftData inverse auto-handles this via relationship or explicit append
-                    // context.insert(newItem) // Usually implicitly inserted when added to relationship
-                    listToUpdate.items.append(newItem)
-                }
-            }
-            
-            // Remove items that no longer exist in cloud
-            // (Only if we are confident cloud is source of truth. Since we just Pushed, it should be.)
-            let itemsToDelete = listToUpdate.items.filter { !processedItemIDs.contains($0.id) }
-            for item in itemsToDelete {
-                context.delete(item) // Remove from context
-                if let index = listToUpdate.items.firstIndex(of: item) {
-                    listToUpdate.items.remove(at: index)
-                }
-            }
-            
-            // Sync Tags
-            if let links = linksByMilestone[listID] {
-                var newTags: [Tag] = []
-                for link in links {
-                    if let tag = tagsMap[link.tagId] {
-                        newTags.append(tag)
+                for cloudItem in currentCloudItems {
+                    processedItemIDs.insert(cloudItem.id)
+                    if let existingItem = listToUpdate.items.first(where: { $0.id == cloudItem.id }) {
+                        existingItem.text = cloudItem.text
+                        existingItem.isDone = cloudItem.isDone 
+                        existingItem.position = cloudItem.position
+                    } else {
+                        let newItem = ChecklistItem(text: cloudItem.text, isDone: cloudItem.isDone, position: cloudItem.position)
+                        newItem.id = cloudItem.id
+                        newItem.checklist = listToUpdate
+                        listToUpdate.items.append(newItem)
                     }
                 }
-                listToUpdate.tags = newTags
-            } else {
-                listToUpdate.tags = []
+                
+                let itemsToDelete = listToUpdate.items.filter { !processedItemIDs.contains($0.id) }
+                for item in itemsToDelete {
+                    context.delete(item)
+                    if let index = listToUpdate.items.firstIndex(of: item) {
+                        listToUpdate.items.remove(at: index)
+                    }
+                }
+            }
+            
+            // Merge Tags - moved inside timestamp check
+            if cloudUpdated > localUpdated {
+                if let links = linksByMilestone[listID] {
+                    var newTags: [Tag] = []
+                    for link in links {
+                        if let tag = tagsMap[link.tagId] {
+                            newTags.append(tag)
+                        }
+                    }
+                    listToUpdate.tags = newTags
+                } else {
+                    listToUpdate.tags = []
+                }
             }
         }
+    }
+
+    // MARK: - Cloud DTOs
+
+    struct CloudTag: Codable, Identifiable {
+        var id: UUID
+        var userId: UUID
+        var name: String
+        var colorHex: String
         
-        try context.save()
+        enum CodingKeys: String, CodingKey {
+            case id
+            case userId = "user_id"
+            case name
+            case colorHex = "color_hex"
+        }
     }
-}
 
-// MARK: - Cloud DTOs
-
-struct CloudTag: Codable, Identifiable {
-    var id: UUID
-    var userId: UUID
-    var name: String
-    var colorHex: String
-    
-    enum CodingKeys: String, CodingKey {
-        case id
-        case userId = "user_id"
-        case name
-        case colorHex = "color_hex"
-    }
 }
 
 struct CloudSimpleChecklist: Codable, Identifiable {
@@ -597,12 +624,12 @@ struct CloudSimpleChecklist: Codable, Identifiable {
     var userOrder: Int
     var recurrenceRule: String?
     var completedAt: Date?
+    var updatedAt: Date? // Timestamps for sync
     
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
-        case title
-        case notes
+        case title, notes
         case dueDate = "due_date"
         case remind
         case isDone = "is_done"
@@ -610,6 +637,7 @@ struct CloudSimpleChecklist: Codable, Identifiable {
         case userOrder = "user_order"
         case recurrenceRule = "recurrence_rule"
         case completedAt = "completed_at"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -637,12 +665,12 @@ struct CloudMilestone: Codable, Identifiable {
     var userOrder: Int
     var recurrenceRule: String?
     var completedAt: Date?
+    var updatedAt: Date? // Timestamps for sync
     
     enum CodingKeys: String, CodingKey {
         case id
         case userId = "user_id"
-        case title
-        case notes
+        case title, notes
         case createdAt = "created_at"
         case dueDate = "due_date"
         case remind
@@ -651,6 +679,7 @@ struct CloudMilestone: Codable, Identifiable {
         case userOrder = "user_order"
         case recurrenceRule = "recurrence_rule"
         case completedAt = "completed_at"
+        case updatedAt = "updated_at"
     }
 }
 
@@ -679,4 +708,3 @@ struct CloudMilestoneTag: Codable {
         case tagId = "tag_id"
     }
 }
-

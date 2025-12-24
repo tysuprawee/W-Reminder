@@ -36,7 +36,7 @@ final class StreakManager {
     func incrementStreak() {
         // Award EXP for every completion
         LevelManager.shared.addExp(10)
-        LevelManager.shared.checkAchievements(totalTasks: LevelManager.shared.currentExp / 10, streak: currentStreak)
+        LevelManager.shared.incrementTaskCount()
         
         let now = Date()
         let calendar = Calendar.current

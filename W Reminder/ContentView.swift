@@ -25,6 +25,7 @@ struct MilestoneView: View {
     @State private var refreshID = UUID() // Force refresh TimelineView
     @State private var showStreakInfo = false
     @State private var showingPremium = false // Premium Sheet State
+    @State private var path = NavigationPath()
 
     enum SortOption: Identifiable, CaseIterable {
         case manual
@@ -37,7 +38,7 @@ struct MilestoneView: View {
     let theme: Theme
 
     var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ZStack {
                 // Background
                 LinearGradient(
@@ -328,6 +329,12 @@ struct MilestoneView: View {
             )
             checklist.isDone = isDone
             modelContext.insert(checklist)
+            
+            // Auto-Navigate to the new Milestone to allow adding tasks immediately
+            // We use a slight delay to allow the sheet to dismiss fully? 
+            // Actually, appending to path works, but user experience is better if we wait for sheet?
+            // Let's just append.
+            path.append(checklist)
         }
         
         // Immediate persistence

@@ -295,6 +295,7 @@ struct SimpleChecklistView: View {
             checklist.remind = remind
             checklist.tags = tags
             checklist.recurrenceRule = recurrenceRule
+            checklist.updatedAt = Date() // Update timestamp for sync
         } else {
             checklist = SimpleChecklist(
                 title: title,
@@ -389,6 +390,8 @@ struct SimpleChecklistView: View {
                                  // Was actually written to DB, undo it
                                  checklist.isDone = false
                                  checklist.completedAt = nil
+                                 checklist.updatedAt = Date()
+
                                  try? modelContext.save()
                                  WidgetCenter.shared.reloadAllTimelines()
                                  Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
@@ -456,6 +459,12 @@ struct SimpleChecklistView: View {
                     if !checklist.isDone {
                         checklist.isDone = true
                         checklist.completedAt = Date()
+                        checklist.updatedAt = Date()
+
+                        
+                        // Cancel Notifications
+                        NotificationManager.shared.cancelNotification(for: checklist)
+                        
                         tasksCompleted += 1
                         
                         // Recurrence logic here
@@ -954,14 +963,15 @@ struct SimpleChecklistRow: View {
             .disabled(isPendingCompletion) // Prevent double-taps while pending
 
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    Text(checklist.title)
-                        .font(.headline)
-                        .foregroundStyle((checklist.isDone || isPendingCompletion) ? .secondary : theme.primary)
-                        .strikethrough((checklist.isDone || isPendingCompletion), color: .secondary)
-                        .animation(.default, value: isPendingCompletion)
-                    
-                    // Multi-Tag Display
+                Text(checklist.title)
+                    .font(.headline)
+                    .foregroundStyle((checklist.isDone || isPendingCompletion) ? .secondary : theme.primary)
+                    .strikethrough((checklist.isDone || isPendingCompletion), color: .secondary)
+                    .animation(.default, value: isPendingCompletion)
+                    .lineLimit(2) // Allow wrapping
+                
+                // Multi-Tag Display
+                if !checklist.tags.isEmpty {
                     HStack(spacing: 4) {
                         ForEach(checklist.tags.prefix(3)) { tag in
                             Text(tag.name)

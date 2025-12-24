@@ -168,8 +168,18 @@ struct TagEditView: View {
     
     private var colorPresets: [Color] {
         [
-            .blue, .purple, .pink, .red, .orange, .yellow,
-            .green, .mint, .teal, .cyan, .indigo, .brown
+            Color(red: 1.0, green: 0.70, blue: 0.73), // Pastel Red
+            Color(red: 1.0, green: 0.87, blue: 0.73), // Pastel Orange
+            Color(red: 1.0, green: 1.0, blue: 0.73), // Pastel Yellow
+            Color(red: 0.73, green: 1.0, blue: 0.79), // Pastel Green
+            Color(red: 0.73, green: 0.88, blue: 1.0), // Pastel Blue
+            Color(red: 0.85, green: 0.75, blue: 0.90), // Pastel Purple
+            Color(red: 1.0, green: 0.80, blue: 0.85), // Pastel Pink
+            Color(red: 0.67, green: 0.94, blue: 0.82), // Pastel Teal
+            Color(red: 0.87, green: 0.94, blue: 0.95), // Pastel Cyan
+            Color(red: 0.95, green: 0.85, blue: 0.70), // Pastel Beige
+            Color(red: 0.80, green: 0.75, blue: 0.70), // Pastel Brown
+            Color(red: 0.85, green: 0.85, blue: 0.85)  // Pastel Gray
         ]
     }
 }

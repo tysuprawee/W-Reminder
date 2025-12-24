@@ -65,7 +65,7 @@ struct ProfilePopupView: View {
                     }
                     .frame(height: 12)
                     
-                    Text("\(levelManager.expForNextLevel - (levelManager.currentExp % 100)) XP to next level")
+                    Text("\(levelManager.expForNextLevel - levelManager.currentExp) XP to next level")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -156,6 +156,7 @@ struct ProfilePopupView: View {
                 }
                 
                 // Premium Banner
+                /*
                 Button {
                     showingPremium = true
                 } label: {
@@ -190,6 +191,7 @@ struct ProfilePopupView: View {
                     .clipShape(RoundedRectangle(cornerRadius: 20))
                     .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
                 }
+                */
                 
                 // Achievements List
                 VStack(alignment: .leading, spacing: 16) {

@@ -68,7 +68,7 @@ struct LoginView: View {
                                         .foregroundStyle(.secondary)
                                         .padding(.leading, 4)
                                     
-                                    TextField("name@example.com", text: $email)
+                                    TextField("", text: $email, prompt: Text("email").foregroundColor(.gray))
                                         .textContentType(.emailAddress)
                                         .keyboardType(.emailAddress)
                                         .textInputAutocapitalization(.never)
@@ -87,7 +87,7 @@ struct LoginView: View {
                                         .foregroundStyle(.secondary)
                                         .padding(.leading, 4)
                                     
-                                    SecureField("Password", text: $password)
+                                    SecureField("", text: $password, prompt: Text("Password").foregroundColor(.gray))
                                         .textContentType(isSignUp ? .newPassword : .password)
                                         .padding()
                                         .background(Color(UIColor.secondarySystemBackground))
