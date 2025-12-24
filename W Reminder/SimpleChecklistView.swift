@@ -1188,7 +1188,6 @@ struct FlowLayout: Layout {
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         let width = proposal.width ?? .infinity
-        var height: CGFloat = 0
         var currentX: CGFloat = 0
         var currentY: CGFloat = 0
         var maxHeightInLine: CGFloat = 0

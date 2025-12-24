@@ -58,7 +58,8 @@ class RemoteConfigManager: ObservableObject {
     
     private func fetchConfigFromSupabase() async throws -> CloudAppConfig? {
         // Fetch the FIRST row from 'app_config' table
-        let client = AuthManager.shared.client
+        // Fetch the FIRST row from 'app_config' table
+        let client = await AuthManager.shared.client
         let config: CloudAppConfig = try await client
             .from("app_config")
             .select()
@@ -67,23 +68,30 @@ class RemoteConfigManager: ObservableObject {
             .execute()
             .value
             
+        print("DEBUG: Fetched Config from Cloud: \(config)")
         return config
     }
     
     @MainActor
     private func evaluate(config: CloudAppConfig) {
         // Get current app version (e.g. "1.04")
-        guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else { return }
+        guard let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String else { 
+            print("DEBUG: Could not find Bundle Version")
+            return 
+        }
         
         let result = VersionComparator.compare(currentVersion, with: config.minSupportedVersion)
+        print("DEBUG: Version Check: Current (\(currentVersion)) vs Min (\(config.minSupportedVersion)) -> \(result)")
         
         // If current version is LESS than min_supported, block.
         if result == .orderedAscending {
             self.updateMessage = config.message
             self.appStoreURL = URL(string: config.appStoreURL)
             self.isUpdateRequired = true
+            print("DEBUG: UPDATE REQUIRED")
         } else {
             self.isUpdateRequired = false
+            print("DEBUG: Update NOT required")
         }
     }
     

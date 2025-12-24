@@ -34,21 +34,29 @@ struct W_ReminderApp: App {
                 
                 // Blocking Update Screen
                 if remoteConfig.isUpdateRequired {
-                    Color.black.edgesIgnoringSafeArea(.all)
+                    Theme.default.background.edgesIgnoringSafeArea(.all)
                     
                     VStack(spacing: 20) {
                         Image(systemName: "arrow.down.circle.fill")
                             .font(.system(size: 60))
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.default.accent)
                         
                         Text("Update Required")
                             .font(.title.bold())
-                            .foregroundStyle(.white)
+                            .foregroundStyle(Theme.default.primary)
                         
                         Text(remoteConfig.updateMessage)
                             .multilineTextAlignment(.center)
-                            .foregroundStyle(.white.opacity(0.8))
+                            .foregroundStyle(Theme.default.secondary)
+                            .foregroundStyle(Theme.default.secondary)
                             .padding(.horizontal)
+                        
+                        // Show Current Version
+                        if let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
+                            Text("Your Version: \(currentVersion)")
+                                .font(.caption)
+                                .foregroundStyle(Theme.default.secondary.opacity(0.8))
+                        }
                         
                         if let url = remoteConfig.appStoreURL {
                             Link(destination: url) {
@@ -56,16 +64,17 @@ struct W_ReminderApp: App {
                                     .font(.headline)
                                     .padding()
                                     .frame(maxWidth: .infinity)
-                                    .background(Color.blue)
-                                    .foregroundColor(.white)
+                                    .background(Theme.default.accent)
+                                    .foregroundColor(.white) // Button text usually white on accent
                                     .cornerRadius(12)
                             }
                             .padding(.horizontal, 40)
                         }
                     }
                     .padding()
-                    .background(Color.black.opacity(0.8))
+                    .background(Theme.default.background) // Or a slightly lighter shade if desired, but consistent
                     .cornerRadius(20)
+                    .shadow(radius: 10)
                     .padding()
                 }
             }
