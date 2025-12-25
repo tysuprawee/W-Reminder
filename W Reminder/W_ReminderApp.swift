@@ -8,6 +8,11 @@
 import SwiftUI
 import SwiftData
 import UserNotifications
+import WidgetKit
+import BackgroundTasks
+
+// Task Identifier must match Info.plist
+let backgroundTaskID = "com.suprawee.W-Reminder.refresh"
 
 @main
 struct W_ReminderApp: App {
@@ -23,6 +28,15 @@ struct W_ReminderApp: App {
         
         // Restore Streak state on launch
         StreakManager.shared.checkStreak()
+        
+        // Register Background Task
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: backgroundTaskID, using: nil) { task in
+            // Handle the task
+            Self.handleAppRefresh(task: task as! BGAppRefreshTask)
+        }
+        
+        // Register for Remote Notifications (Best Practice)
+        UIApplication.shared.registerForRemoteNotifications()
     }
 
     // State for RemoteConfig
@@ -85,16 +99,74 @@ struct W_ReminderApp: App {
                 if newPhase == .active {
                     print("DEBUG: App became active, checking version...")
                     remoteConfig.checkAppVersion()
+                } else if newPhase == .background {
+                    // Schedule Background Fetch when leaving
+                    Self.scheduleAppRefresh()
                 }
             }
         }
         .modelContainer(sharedModelContainer)
 
     }
+    
+    // MARK: - Background Fetch Handling
+    static func scheduleAppRefresh() {
+        let request = BGAppRefreshTaskRequest(identifier: backgroundTaskID)
+        // Fetch typically every 15-30 mins minimum system allowed
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        
+        do {
+            try BGTaskScheduler.shared.submit(request)
+           // print("Background Task Scheduled!")
+        } catch {
+            print("Could not schedule app refresh: \(error)")
+        }
+    }
+    
+    static func handleAppRefresh(task: BGAppRefreshTask) {
+        // Create a new background context for the sync
+        // Note: Creating a container here works because SharedPersistence.shared is already init
+        let container = SharedPersistence.shared.container
+        
+        // Expiration Handler
+        task.expirationHandler = {
+            // Cancel current operations if system kills us
+            print("Background sync expired.")
+        }
+        
+        // Perform Sync
+        Task {
+            print("Starting Background Sync...")
+            let success = await SyncManager.shared.sync(container: container, silent: true)
+            if success {
+                task.setTaskCompleted(success: true)
+                // Also Refresh Widget
+                WidgetKit.WidgetCenter.shared.reloadAllTimelines()
+            } else {
+                task.setTaskCompleted(success: false)
+            }
+        }
+    }
 }
 
 class AppDelegate: NSObject, UIApplicationDelegate {
     func application(_ application: UIApplication, supportedInterfaceOrientationsFor window: UIWindow?) -> UIInterfaceOrientationMask {
         return .portrait
+    }
+    
+    // Remote Notifications
+    func application(_ application: UIApplication, didRegisterForRemoteNotificationsWithDeviceToken deviceToken: Data) {
+        let tokenParts = deviceToken.map { data in String(format: "%02.2hhx", data) }
+        let token = tokenParts.joined()
+        print("Device Token: \(token)")
+        
+        // Send to AuthManager (Supabase)
+        Task {
+            await AuthManager.shared.saveDeviceToken(token)
+        }
+    }
+    
+    func application(_ application: UIApplication, didFailToRegisterForRemoteNotificationsWithError error: Error) {
+        print("Failed to register: \(error)")
     }
 }

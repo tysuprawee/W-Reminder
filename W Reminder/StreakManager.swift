@@ -79,6 +79,7 @@ final class StreakManager {
         
         // Push to Cloud
         Task {
+            await MainActor.run { ThemeManager.shared.checkUnlocks() } // Check unlocks
             await AuthManager.shared.updateStreak(count: self.currentStreak, lastActive: now)
         }
     }

@@ -561,6 +561,9 @@ final class SyncManager {
                     }
                     listToUpdate.tags = newTags
                 }
+                
+                // Schedule Notification for new incoming item
+                NotificationManager.shared.scheduleNotification(for: listToUpdate)
             }
         }
     }
@@ -645,10 +648,14 @@ final class SyncManager {
                         }
                     }
                     listToUpdate.tags = newTags
+                    listToUpdate.tags = newTags
                 }
                 
                 // Force Update Items for new Valid Record
                 forceUpdate = true
+                
+                // Schedule Notification for new incoming item
+                NotificationManager.shared.scheduleNotification(for: listToUpdate)
             }
             
             // Merge Items (Subtasks)

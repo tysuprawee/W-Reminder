@@ -23,10 +23,13 @@ struct ProfilePopupView: View {
                         Circle()
                             .fill(LinearGradient(colors: [.blue, .purple], startPoint: .topLeading, endPoint: .bottomTrailing))
                             .frame(width: 80, height: 80)
+                            .shadow(color: .purple.opacity(0.5), radius: 10)
+                            .overlay(SparkleEffect()) // Reusing our new sparkle effect
                         
                         Text("\(levelManager.currentLevel)")
                             .font(.system(size: 32, weight: .bold, design: .rounded))
                             .foregroundStyle(.white)
+                            .shadow(radius: 2)
                     }
                     .padding(.top)
                     
@@ -193,9 +196,30 @@ struct ProfilePopupView: View {
                 }
                 */
                 
-                // Achievements List
+                // Achievements List (Trophy Room Style)
                 VStack(alignment: .leading, spacing: 16) {
-                    Text("Achievements")
+                    HStack {
+                        Text("Trophy Room")
+                            .font(.headline)
+                        Spacer()
+                    }
+                    .padding(.horizontal)
+                    
+                    ScrollView(.horizontal, showsIndicators: false) {
+                        HStack(spacing: 16) {
+                            ForEach(Achievement.all) { achievement in
+                                let isUnlocked = levelManager.unlockedAchievementIds.contains(achievement.id)
+                                TrophyView(achievement: achievement, isUnlocked: isUnlocked, theme: theme)
+                            }
+                        }
+                        .padding(.horizontal)
+                    }
+                }
+                .padding(.bottom)
+                
+                // Detailed List (optional, maybe hidden or collapsible in premium design? Keeping for utility)
+                VStack(alignment: .leading, spacing: 16) {
+                    Text("All Achievements")
                         .font(.headline)
                         .padding(.horizontal)
                     
@@ -204,7 +228,7 @@ struct ProfilePopupView: View {
                         HStack(spacing: 16) {
                             ZStack {
                                 Circle()
-                                    .fill(isUnlocked ? theme.accent.opacity(0.2) : Color.gray.opacity(0.1))
+                                    .fill(isUnlocked ? theme.accent.opacity(0.15) : Color.gray.opacity(0.1))
                                     .frame(width: 44, height: 44)
                                 
                                 Image(systemName: achievement.icon)
@@ -215,7 +239,7 @@ struct ProfilePopupView: View {
                             VStack(alignment: .leading, spacing: 2) {
                                 Text(achievement.title)
                                     .font(.subheadline.bold())
-                                    .foregroundStyle(isUnlocked ? .primary : .secondary)
+                                    .foregroundStyle(isUnlocked ? theme.primary : .secondary)
                                 Text(achievement.description)
                                     .font(.caption)
                                     .foregroundStyle(.secondary)
@@ -229,22 +253,91 @@ struct ProfilePopupView: View {
                             }
                         }
                         .padding(.horizontal)
-                        .opacity(isUnlocked ? 1.0 : 0.6)
+                        .opacity(isUnlocked ? 1.0 : 0.5)
+                        .grayscale(isUnlocked ? 0 : 1)
                     }
                 }
-                .padding(.bottom)
-                
-
+                .padding(.bottom, 40)
             }
             .padding()
         }
-        .background(theme.background) // Ensure background consistent
+        .background(theme.background)
         .sheet(isPresented: $showingPremium) {
             PremiumUpgradeView(theme: theme)
         }
         .sheet(isPresented: $showingStats) {
             StatisticsView(theme: theme)
                 .presentationDetents([.medium, .large])
+        }
+    }
+}
+
+// MARK: - Subviews & Effects
+
+struct TrophyView: View {
+    let achievement: Achievement
+    let isUnlocked: Bool
+    let theme: Theme
+    
+    var body: some View {
+        VStack(spacing: 8) {
+            ZStack {
+                Circle()
+                    .fill(
+                        isUnlocked
+                        ? AnyShapeStyle(LinearGradient(colors: [theme.accent.opacity(0.2), theme.accent.opacity(0.05)], startPoint: .top, endPoint: .bottom))
+                        : AnyShapeStyle(Color.gray.opacity(0.1))
+                    )
+                    .frame(width: 70, height: 70)
+                    .overlay(
+                        Circle()
+                            .stroke(isUnlocked ? theme.accent.opacity(0.3) : Color.clear, lineWidth: 1)
+                    )
+                
+                Image(systemName: achievement.icon)
+                    .font(.system(size: 28))
+                    .foregroundStyle(isUnlocked ? AnyShapeStyle(LinearGradient(colors: [theme.accent, .purple], startPoint: .topLeading, endPoint: .bottomTrailing)) : AnyShapeStyle(Color.gray))
+                    .shadow(color: isUnlocked ? theme.accent.opacity(0.5) : .clear, radius: 8)
+                
+                if isUnlocked {
+                    SparkleEffect()
+                }
+            }
+            
+            Text(achievement.title)
+                .font(.caption.bold())
+                .foregroundStyle(isUnlocked ? theme.primary : .secondary)
+                .multilineTextAlignment(.center)
+                .lineLimit(2)
+                .frame(width: 80)
+        }
+        .opacity(isUnlocked ? 1.0 : 0.6)
+        .scaleEffect(isUnlocked ? 1.0 : 0.9)
+    }
+}
+
+struct SparkleEffect: View {
+    @State private var isAnimating = false
+    
+    var body: some View {
+        ZStack {
+            ForEach(0..<4) { i in
+                Circle()
+                    .fill(Color.yellow)
+                    .frame(width: 4, height: 4)
+                    .offset(x: isAnimating ? CGFloat.random(in: -25...25) : 0,
+                            y: isAnimating ? CGFloat.random(in: -25...25) : 0)
+                    .opacity(isAnimating ? 0 : 1)
+                    .animation(
+                        Animation.easeOut(duration: 1.5)
+                            .repeatForever(autoreverses: false)
+                            .delay(Double(i) * 0.2),
+                        value: isAnimating
+                    )
+            }
+        }
+        .onAppear {
+            isAnimating = true
         }
     }
 }

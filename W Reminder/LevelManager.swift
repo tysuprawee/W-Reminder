@@ -12,6 +12,7 @@ import Combine
 
 /// Manages Experience (EXP), Levels, and Achievements
 @Observable
+@MainActor
 final class LevelManager {
     static let shared = LevelManager()
     
@@ -91,6 +92,10 @@ final class LevelManager {
             currentLevel = calculatedLevel
             // Trigger Animation
             showLevelUpCelebration = true
+            ThemeManager.shared.checkUnlocks() // Check for theme unlocks
+            DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
+                self.showLevelUpCelebration = false
+            }
             
             // Check Level-based achievements
             checkLevelAchievements()
@@ -137,6 +142,24 @@ final class LevelManager {
         if streak >= 100 { unlock(id: "streak_100") }
         
         checkLevelAchievements()
+        checkTimeSensitiveAchievements()
+    }
+    
+    private func checkTimeSensitiveAchievements() {
+        let now = Date()
+        let calendar = Calendar.current
+        let hour = calendar.component(.hour, from: now)
+        let weekday = calendar.component(.weekday, from: now) // 1=Sun, 7=Sat
+        
+        // Early Bird: Before 8 AM (0-7)
+        if hour < 8 {
+            unlock(id: "early_bird")
+        }
+        
+        // Weekend Warrior: Saturday (7) or Sunday (1)
+        if weekday == 1 || weekday == 7 {
+            unlock(id: "weekend_warrior")
+        }
     }
     
     private func checkLevelAchievements() {
@@ -300,5 +323,9 @@ struct Achievement: Identifiable {
         Achievement(id: "level_40", title: "Grandmaster", description: "Reach Level 40", icon: "trophy.fill"),
         Achievement(id: "level_45", title: "Hero", description: "Reach Level 45", icon: "shield.fill"),
         Achievement(id: "level_50", title: "Immortal", description: "Reach Level 50", icon: "infinity"),
+        
+        // MARK: TIME & SPECIAL
+        Achievement(id: "early_bird", title: "Early Bird", description: "Complete a task before 8 AM", icon: "sunrise.fill"),
+        Achievement(id: "weekend_warrior", title: "Weekend Warrior", description: "Complete a task on the weekend", icon: "tent.fill"),
     ]
 }

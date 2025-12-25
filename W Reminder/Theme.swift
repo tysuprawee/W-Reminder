@@ -13,6 +13,24 @@ struct Theme: Identifiable, Hashable {
     let accent: Color
     let background: Color
     let isDark: Bool
+    // New Unlock Requirement
+    let unlockRequirement: ThemeUnlockRequirement?
+
+    enum ThemeUnlockRequirement: Hashable {
+        case level(Int)
+        case invites(Int)
+        case streak(Int) // New Streak Requirement
+        case premium
+        
+        var description: String {
+            switch self {
+            case .level(let l): return "Reach Level \(l)"
+            case .invites(let i): return "Invite \(i) Friends"
+            case .streak(let s): return "\(s)-Day Streak"
+            case .premium: return "Premium Only"
+            }
+        }
+    }
 
     static let classic = Theme(
         id: "classic",
@@ -21,7 +39,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#5D6D7E"),
         accent: Color(hex: "#6B8E23"),
         background: Color(hex: "#FFF8D4"),
-        isDark: false
+        isDark: false,
+        unlockRequirement: nil // Unlocked 1
     )
 
     static let warm = Theme(
@@ -31,7 +50,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#8D6E63"),
         accent: Color(hex: "#D84315"),
         background: Color(hex: "#FFE0B2"),
-        isDark: false
+        isDark: false,
+        unlockRequirement: nil // Unlocked 2
     )
 
     static let dark = Theme(
@@ -41,7 +61,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#BDBDBD"),
         accent: Color(hex: "#BB86FC"),
         background: Color(hex: "#121212"),
-        isDark: true
+        isDark: true,
+        unlockRequirement: .level(3) // Locked now
     )
 
     static let pastelDream = Theme(
@@ -51,7 +72,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#757575"),
         accent: Color(hex: "#D81B60"),
         background: Color(hex: "#FFF0F5"),
-        isDark: false
+        isDark: false,
+        unlockRequirement: .streak(3) // Easy Streak
     )
 
     static let mintFresh = Theme(
@@ -61,7 +83,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#388E3C"),
         accent: Color(hex: "#00897B"),
         background: Color(hex: "#E8F5E9"),
-        isDark: false
+        isDark: false,
+        unlockRequirement: .level(5)
     )
 
     static let lavenderHaze = Theme(
@@ -71,7 +94,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#673AB7"),
         accent: Color(hex: "#7E57C2"),
         background: Color(hex: "#F3E5F5"),
-        isDark: false
+        isDark: false,
+        unlockRequirement: .invites(1) // First Invite
     )
     
     static let oceanic = Theme(
@@ -81,23 +105,9 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#80DEEA"),
         accent: Color(hex: "#00E5FF"),
         background: Color(hex: "#006064"),
-        isDark: true
+        isDark: true,
+        unlockRequirement: .streak(7) // Week Warrior
     )
-
-    static let all: [Theme] = [
-        .classic,
-        .warm,
-        .dark,
-        .pastelDream,
-        .mintFresh,
-        .lavenderHaze,
-        .oceanic,
-        .sunsetGlow,
-        .forestDeep,
-        .royalGold,
-        .charcoal,
-        .skyBlue
-    ]
 
     static let sunsetGlow = Theme(
         id: "sunsetGlow",
@@ -106,7 +116,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#D84315"),
         accent: Color(hex: "#FF6F00"),
         background: Color(hex: "#FFCCBC"),
-        isDark: false
+        isDark: false,
+        unlockRequirement: .invites(3)
     )
 
     static let forestDeep = Theme(
@@ -116,7 +127,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#A5D6A7"),
         accent: Color(hex: "#66BB6A"),
         background: Color(hex: "#1B5E20"),
-        isDark: true
+        isDark: true,
+        unlockRequirement: .level(20)
     )
 
     static let royalGold = Theme(
@@ -126,7 +138,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#FFECB3"),
         accent: Color(hex: "#FFC107"),
         background: Color(hex: "#311B92"),
-        isDark: true
+        isDark: true,
+        unlockRequirement: .streak(30) // Monthly Legend
     )
 
     static let charcoal = Theme(
@@ -136,7 +149,8 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#CFD8DC"),
         accent: Color(hex: "#00BCD4"),
         background: Color(hex: "#263238"),
-        isDark: true
+        isDark: true,
+        unlockRequirement: .invites(5)
     )
 
     static let skyBlue = Theme(
@@ -146,8 +160,37 @@ struct Theme: Identifiable, Hashable {
         secondary: Color(hex: "#0288D1"),
         accent: Color(hex: "#29B6F6"),
         background: Color(hex: "#E1F5FE"),
-        isDark: false
+        isDark: false,
+        unlockRequirement: .level(10)
     )
+    
+    // INVITE THEME (Influencer)
+    static let influencer = Theme(
+        id: "influencer",
+        name: "Influencer Gold",
+        primary: Color(hex: "#FFFDE7"),
+        secondary: Color(hex: "#FFD54F"),
+        accent: Color(hex: "#FFAB00"),
+        background: Color(hex: "#212121"),
+        isDark: true,
+        unlockRequirement: .invites(15) // Max Invite Challenge
+    )
+
+    static let all: [Theme] = [
+        .classic,
+        .warm,
+        .dark,
+        .pastelDream,
+        .skyBlue,
+        .mintFresh,
+        .lavenderHaze,
+        .oceanic,
+        .sunsetGlow,
+        .forestDeep,
+        .royalGold,
+        .charcoal,
+        .influencer
+    ]
 
     static let `default` = classic
 }

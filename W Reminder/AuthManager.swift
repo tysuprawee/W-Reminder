@@ -130,6 +130,13 @@ final class AuthManager {
             
             self.profile = profile
             
+            // Check if Invite Code is missing (for existing users)
+            if profile.inviteCode == nil {
+                Task {
+                    await generateInviteCode()
+                }
+            }
+            
             // Sync Streaks & Gamification (Cloud -> Local)
             await MainActor.run {
                 if let cloudStreak = profile.streakCount {
@@ -157,9 +164,24 @@ final class AuthManager {
                 if let sound = profile.notificationSound {
                     UserDefaults.standard.set(sound, forKey: "notificationSound")
                 }
+                
+                ThemeManager.shared.checkUnlocks() // Check theme unlocks
             }
         } catch {
             print("Error fetching profile: \(error)")
+        }
+    }
+    
+    func generateInviteCode() async {
+        do {
+            let _: String = try await client
+                .rpc("generate_my_invite_code")
+                .execute()
+                .value
+            
+            await fetchProfile() // Refresh to get the new code
+        } catch {
+            print("Error generating invite code: \(error)")
         }
     }
     
@@ -223,6 +245,45 @@ final class AuthManager {
         }
     }
 
+    // MARK: - Referral
+    
+    func redeemInvite(code: String) async -> (success: Bool, message: String) {
+        do {
+            struct RedeemParams: Codable { let code: String }
+            struct RedeemResponse: Codable { let success: Bool; let message: String }
+            
+            let response: RedeemResponse = try await client
+                .rpc("redeem_invite", params: RedeemParams(code: code))
+                .execute()
+                .value
+                
+            if response.success {
+                await fetchProfile() // Refresh local profile to show "Redeemed" state
+            }
+            return (response.success, response.message)
+            
+        } catch {
+             print("Error redeeming code: \(error)")
+             return (false, error.localizedDescription)
+        }
+    }
+
+    func saveDeviceToken(_ token: String) async {
+        guard let userId = user?.id else { return }
+        
+        // Upsert Token
+        let tokenObj = DeviceToken(userId: userId, token: token)
+        
+        do {
+            try await client
+                .from("device_tokens")
+                .upsert(tokenObj)
+                .execute()
+        } catch {
+            print("Error saving device token: \(error)")
+        }
+    }
+
     // Handle URL from deep link (for OAuth)
     func handleIncomingURL(_ url: URL) {
         Task {
@@ -252,6 +313,11 @@ struct Profile: Codable {
     let achievements: String?
     let totalTasks: Int?
     
+    // New Fields
+    let inviteCode: String?
+    let invitationsCount: Int?
+    let redeemedByCode: String?
+    
     enum CodingKeys: String, CodingKey {
         case id
         case email
@@ -265,6 +331,9 @@ struct Profile: Codable {
         case level
         case achievements
         case totalTasks = "total_tasks"
+        case inviteCode = "invite_code"
+        case invitationsCount = "invitations_count"
+        case redeemedByCode = "redeemed_by_code"
     }
 }
 
@@ -285,6 +354,22 @@ struct ProfileStreakUpdate: Encodable {
     enum CodingKeys: String, CodingKey {
         case streakCount = "streak_count"
         case streakLastActive = "streak_last_active"
+    }
+}
+
+
+
+// MARK: - Models
+
+struct DeviceToken: Codable {
+    let userId: UUID
+    let token: String
+    let platform: String = "ios"
+    
+    enum CodingKeys: String, CodingKey {
+        case userId = "user_id"
+        case token
+        case platform
     }
 }
 

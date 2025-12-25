@@ -50,6 +50,7 @@ struct RootView: View {
     @State private var showWelcomeBack = false
     private let authManager = AuthManager.shared
     @State private var syncManager = SyncManager.shared // Observe updates
+    @StateObject private var themeManager = ThemeManager.shared
 
     var body: some View {
         Group {
@@ -119,6 +120,23 @@ struct RootView: View {
                 .transition(.opacity)
                 .zIndex(200)
             }
+            
+            if themeManager.showUnlockCelebration, let newTheme = themeManager.newlyUnlockedTheme {
+                ThemeUnlockCelebrationView(theme: newTheme) {
+                    // Dismiss
+                    withAnimation {
+                        themeManager.showUnlockCelebration = false
+                    }
+                } onApply: {
+                    // Apply
+                    withAnimation {
+                        selectedThemeId = newTheme.id
+                        themeManager.showUnlockCelebration = false
+                    }
+                }
+                .zIndex(300)
+                .transition(.opacity)
+            }
         }
     }
 
@@ -144,7 +162,7 @@ struct RootView: View {
                 .tabItem {
                     Label("Records", systemImage: "tray.full")
                 }
-
+            
             SettingsView(selectedThemeId: $selectedThemeId, notificationStatus: $notificationStatus, notificationSound: $notificationSound, hasSeenWelcome: $hasSeenWelcome, theme: theme)
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
@@ -153,10 +171,13 @@ struct RootView: View {
         .tint(theme.accent)
         .onAppear {
             refreshNotificationStatus()
+            // Check unlocks on app launch
+            ThemeManager.shared.checkUnlocks()
         }
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .active {
                 refreshNotificationStatus()
+                ThemeManager.shared.checkUnlocks()
             }
         }
     }
@@ -272,6 +293,7 @@ struct SettingsView: View {
 
     @State private var authManager = AuthManager.shared
     @State private var showLoginSheet = false
+    @State private var showRedeemSheet = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
     @State private var showLogoutAlert = false
         
@@ -305,6 +327,56 @@ struct SettingsView: View {
                             }
                             .buttonStyle(.bordered)
                         }
+                        
+                        // Referral Section
+                        HStack(alignment: .center) {
+                           VStack(alignment: .leading, spacing: 4) {
+                               Text("Your Invite Code")
+                                   .font(.caption)
+                                   .foregroundStyle(.secondary)
+                               
+                               HStack {
+                                   Text(authManager.profile?.inviteCode ?? "Loading...")
+                                       .font(.headline.monospaced())
+                                       .foregroundStyle(theme.accent)
+                                   
+                                   if let code = authManager.profile?.inviteCode {
+                                       Button {
+                                           UIPasteboard.general.string = code
+                                            // Feedback via Haptics or just visual would be good, 
+                                            // but for now the button press default animation is okay.
+                                       } label: {
+                                           Image(systemName: "doc.on.doc")
+                                               .font(.caption)
+                                               .foregroundStyle(.secondary)
+                                       }
+                                       .buttonStyle(.plain)
+                                   }
+                               }
+                           }
+                           
+                           Spacer()
+                           
+                           if authManager.profile?.redeemedByCode == nil {
+                               Button("Enter Code") {
+                                   showRedeemSheet = true
+                               }
+                               .buttonStyle(.bordered)
+                               .tint(theme.accent)
+                               .controlSize(.small)
+                           } else {
+                               VStack {
+                                   Image(systemName: "checkmark.seal.fill")
+                                       .foregroundStyle(.green)
+                                       .font(.title2)
+                                   Text("Redeemed")
+                                       .font(.caption2)
+                                       .foregroundStyle(.secondary)
+                               }
+                           }
+                        }
+                        .padding(.vertical, 6)
+                        
                     } else {
                         Button {
                             showLoginSheet = true
@@ -434,7 +506,7 @@ struct SettingsView: View {
                     HStack {
                         Label("Version", systemImage: "info.circle")
                         Spacer()
-                        Text("1.04 beta")
+                        Text("1.05 beta")
                             .foregroundStyle(.secondary)
                             .font(.subheadline)
                     }
@@ -443,6 +515,10 @@ struct SettingsView: View {
             .navigationTitle("Settings")
             .sheet(isPresented: $showLoginSheet) {
                 LoginView()
+            }
+            .sheet(isPresented: $showRedeemSheet) {
+                RedeemInviteView(theme: theme)
+                    .presentationDetents([.medium])
             }
             .alert("Sync Failed", isPresented: $showLogoutAlert) {
                 Button("Force Sign Out", role: .destructive) {
@@ -585,6 +661,81 @@ enum NotificationSound: String, CaseIterable, Identifiable {
         case .default: return nil
         case .bellsEcho: return "bells-echo.wav"
         case .game: return "game.wav"
+        }
+    }
+}
+
+
+
+// MARK: - Redeem Invite Sheet
+struct RedeemInviteView: View {
+    let theme: Theme
+    @State private var code: String = ""
+    @State private var message: String?
+    @State private var isSuccess = false
+    @State private var isLoading = false
+    @Environment(\.dismiss) private var dismiss
+    
+    var body: some View {
+        VStack(spacing: 24) {
+            Text("Enter Invite Code")
+                .font(.title2.bold())
+            
+            Text("Enter a friend's code to unlock special rewards for them!")
+                .multilineTextAlignment(.center)
+                .foregroundStyle(.secondary)
+            
+            TextField("Code (e.g. A2B4X9)", text: $code)
+                .textFieldStyle(.roundedBorder)
+                .multilineTextAlignment(.center)
+                .font(.system(.title3, design: .monospaced))
+                .textInputAutocapitalization(.characters)
+                .padding(.horizontal)
+            
+            if let message = message {
+                Text(message)
+                    .foregroundStyle(isSuccess ? .green : .red)
+                    .font(.caption)
+            }
+            
+            Button {
+                submit()
+            } label: {
+                if isLoading {
+                    ProgressView().tint(.white)
+                } else {
+                    Text("Redeem")
+                        .bold()
+                }
+            }
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(theme.accent)
+            .foregroundStyle(.white)
+            .cornerRadius(12)
+            .padding(.horizontal)
+            .disabled(code.count < 3 || isLoading)
+        }
+        .padding()
+        .presentationDetents([.medium])
+    }
+    
+    func submit() {
+        guard !code.isEmpty else { return }
+        isLoading = true
+        message = nil
+        
+        Task {
+            let (success, msg) = await AuthManager.shared.redeemInvite(code: code.uppercased())
+            isLoading = false
+            message = msg
+            isSuccess = success
+            
+            if success {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
+                    dismiss()
+                }
+            }
         }
     }
 }
