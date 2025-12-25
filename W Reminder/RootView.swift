@@ -47,6 +47,7 @@ struct RootView: View {
     @AppStorage("hasSeenWelcome") private var hasSeenWelcome: Bool = false
     
     @State private var authInitialized = false
+    @State private var showWelcomeBack = false
     private let authManager = AuthManager.shared
     @State private var syncManager = SyncManager.shared // Observe updates
 
@@ -74,9 +75,17 @@ struct RootView: View {
             authManager.handleIncomingURL(url)
         }
         // Listen for session changes (Just for state updates, not navigation blocking)
-        .onChange(of: authManager.session) {old, new in
-             if new != nil {
-                 print("Session updated: User is authenticated")
+        // Listen for Welcome Back Trigger
+        .onChange(of: authManager.shouldShowWelcomeBack) { _, newValue in
+             if newValue {
+                 // Ensure we wait for any sheet dismissal (LoginSheet)
+                 // Or simply show it since it's an overlay on RootView (z-index 200)
+                 // But if sheet is dismissing, wait a beat for smoother transition
+                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                     withAnimation { showWelcomeBack = true }
+                     // Reset flag
+                     authManager.shouldShowWelcomeBack = false
+                 }
              }
         }
         .preferredColorScheme(theme.isDark ? .dark : .light)
@@ -98,6 +107,16 @@ struct RootView: View {
             }
             
             GamificationOverlay()
+            
+            if showWelcomeBack {
+                WelcomeBackView {
+                    withAnimation {
+                        showWelcomeBack = false
+                    }
+                }
+                .transition(.opacity)
+                .zIndex(200)
+            }
         }
     }
 

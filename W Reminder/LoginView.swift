@@ -197,6 +197,7 @@ struct LoginView: View {
                             await authManager.fetchProfile()
                             
                             await SyncManager.shared.sync(container: modelContext.container)
+                            authManager.shouldShowWelcomeBack = true
                             dismiss()
                         } catch {
                             print("Error clearing local data: \(error)")
@@ -259,6 +260,7 @@ struct LoginView: View {
             } else {
                 // No local data, just sync (pull) and close
                 await SyncManager.shared.sync(container: modelContext.container)
+                authManager.shouldShowWelcomeBack = true
                 dismiss()
             }
         } catch {

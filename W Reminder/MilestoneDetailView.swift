@@ -19,6 +19,7 @@ struct MilestoneDetailView: View {
     @State private var itemToEditDate: ChecklistItem?
     @State private var newTaskText: String = ""
     @FocusState private var isInputFocused: Bool
+    @State private var scrollTarget: UUID? = nil
     
     // Robustness
     @State private var debouncedSaveTask: Task<Void, Never>? = nil
@@ -54,38 +55,49 @@ struct MilestoneDetailView: View {
                 
                 // MARK: - Task List
                 // We use List to support swipe-to-delete and reorder
-                List {
-                    let sortedItems = checklist.items.sorted { $0.position < $1.position }
-                    
-                    ForEach(sortedItems) { item in
-                        MilestoneTaskRow(item: item, theme: theme, onToggle: {
-                            toggleItem(item)
-                        }, onSetDate: {
-                            itemToEditDate = item
-                        })
-                        .listRowSeparator(.hidden)
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
-                        .swipeActions(edge: .trailing, allowsFullSwipe: true) {
-                            Button(role: .destructive) {
-                                deleteItem(item)
-                            } label: {
-                                Label("Delete", systemImage: "trash")
-                            }
-                            
-                            Button {
+                ScrollViewReader { proxy in
+                    List {
+                        let sortedItems = checklist.items.sorted { $0.position < $1.position }
+                        
+                        ForEach(sortedItems) { item in
+                            MilestoneTaskRow(item: item, theme: theme, onToggle: {
+                                toggleItem(item)
+                            }, onSetDate: {
                                 itemToEditDate = item
-                            } label: {
-                                Label("Date", systemImage: "calendar")
+                            })
+                            .id(item.id) // Identify for scrolling
+                            .listRowSeparator(.hidden)
+                            .listRowBackground(Color.clear)
+                            .listRowInsets(EdgeInsets(top: 4, leading: 16, bottom: 4, trailing: 16))
+                            .swipeActions(edge: .trailing, allowsFullSwipe: true) {
+                                Button(role: .destructive) {
+                                    deleteItem(item)
+                                } label: {
+                                    Label("Delete", systemImage: "trash")
+                                }
+                                
+                                Button {
+                                    itemToEditDate = item
+                                } label: {
+                                    Label("Date", systemImage: "calendar")
+                                }
+                                .tint(.orange)
                             }
-                            .tint(.orange)
+                        }
+                        .onMove(perform: moveItems)
+                    }
+                    .listStyle(.plain)
+                    .scrollContentBackground(.hidden)
+                    .environment(\.defaultMinListRowHeight, 50)
+                    .onChange(of: scrollTarget) { _, target in
+                        if let target {
+                            withAnimation {
+                                proxy.scrollTo(target, anchor: .bottom)
+                            }
+                            scrollTarget = nil
                         }
                     }
-                    .onMove(perform: moveItems)
                 }
-                .listStyle(.plain)
-                .scrollContentBackground(.hidden)
-                .environment(\.defaultMinListRowHeight, 50)
                 
                 // MARK: - Quick Add
                 VStack(spacing: 0) {
@@ -337,6 +349,11 @@ struct MilestoneDetailView: View {
         
         withAnimation {
              checklist.items.append(newItem)
+        }
+        
+        // Auto-Scroll to new item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+            scrollTarget = newItem.id
         }
         
         newTaskText = ""

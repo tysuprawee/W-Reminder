@@ -13,7 +13,7 @@ struct SimpleChecklistView: View {
     @State private var editing: SimpleChecklist?
     @State private var showPermissionAlert = false
     @AppStorage("checklistSortOption") private var sortOption: SortOption = .manual
-    @State private var filterTag: Tag? = nil // nil = all
+    @State private var filterTagID: UUID? = nil // nil = all
     @State private var showOnlyStarred = false
     @State private var refreshID = UUID() // Force refresh TimelineView
     @State private var showStreakInfo = false
@@ -111,9 +111,9 @@ struct SimpleChecklistView: View {
                             // Filter Section
                             Section("Filter") {
                                 Button {
-                                    withAnimation { filterTag = nil }
+                                    withAnimation { filterTagID = nil }
                                 } label: {
-                                    if filterTag == nil {
+                                    if filterTagID == nil {
                                         Label("All Tags", systemImage: "checkmark")
                                     } else {
                                         Text("All Tags")
@@ -121,9 +121,9 @@ struct SimpleChecklistView: View {
                                 }
                                 ForEach(tags) { tag in
                                     Button {
-                                        withAnimation { filterTag = tag }
+                                        withAnimation { filterTagID = tag.id }
                                     } label: {
-                                        if filterTag == tag {
+                                        if filterTagID == tag.id {
                                             Label(tag.name, systemImage: "checkmark")
                                         } else {
                                             HStack {
@@ -173,8 +173,8 @@ struct SimpleChecklistView: View {
                             let _ = context.date // Force view update on timeline changes
                             let active = checklists.filter { !$0.isDone || pendingCompletionIDs.contains($0.id) }
                             let filteredActive = active.filter {
-                                guard let filterTag else { return true }
-                                return $0.tags.contains(where: { $0.id == filterTag.id })
+                                guard let filterTagID else { return true }
+                                return $0.tags.contains(where: { $0.id == filterTagID })
                             }
                             let starredFiltered = showOnlyStarred ? filteredActive.filter { $0.isStarred } : filteredActive
                             let sortedActive = sort(starredFiltered)
@@ -595,7 +595,7 @@ struct AddSimpleChecklistView: View {
     @State private var dueDate: Date? = nil
     @State private var remind: Bool = true
     @State private var isSettingDueDate: Bool = false
-    @State private var selectedTags: [Tag] = []
+    @State private var selectedTagIDs: Set<UUID> = []
     @State private var recurrenceRule: String? = nil
     @State private var detectedDate: SmartDateResult? = nil
     @State private var showingMaxTagsAlert = false
@@ -684,11 +684,11 @@ struct AddSimpleChecklistView: View {
                                         ForEach(tags) { tag in
                                             Button {
                                                 withAnimation {
-                                                    if selectedTags.contains(where: { $0.id == tag.id }) {
-                                                        selectedTags.removeAll { $0.id == tag.id }
+                                                    if selectedTagIDs.contains(tag.id) {
+                                                        selectedTagIDs.remove(tag.id)
                                                     } else {
-                                                        if selectedTags.count < 3 {
-                                                            selectedTags.append(tag)
+                                                        if selectedTagIDs.count < 3 {
+                                                            selectedTagIDs.insert(tag.id)
                                                         } else {
                                                             showingMaxTagsAlert = true
                                                         }
@@ -716,7 +716,7 @@ struct AddSimpleChecklistView: View {
                                                      )
                                                      .overlay(
                                                          Capsule()
-                                                             .stroke(selectedTags.contains(where: { $0.id == tag.id }) ? theme.accent : tag.color.opacity(0.4), lineWidth: selectedTags.contains(where: { $0.id == tag.id }) ? 3 : 1)
+                                                             .stroke(selectedTagIDs.contains(tag.id) ? theme.accent : tag.color.opacity(0.4), lineWidth: selectedTagIDs.contains(tag.id) ? 3 : 1)
                                                      )
                                                      .shadow(color: tag.color.opacity(0.4), radius: 4, y: 2)
                                             }
@@ -724,8 +724,8 @@ struct AddSimpleChecklistView: View {
                                                 Button(role: .destructive) {
                                                     withAnimation {
                                                         // 1. Remove from local selection
-                                                        if let idx = selectedTags.firstIndex(where: { $0.id == tag.id }) {
-                                                            selectedTags.remove(at: idx)
+                                                        if selectedTagIDs.contains(tag.id) {
+                                                            selectedTagIDs.remove(tag.id)
                                                         }
                                                         
                                                         // 2. Register deletion for Sync
@@ -747,7 +747,7 @@ struct AddSimpleChecklistView: View {
                                         }
                                                                                 // "Add Tag" Button
                                          Button {
-                                             if selectedTags.count >= 3 {
+                                             if selectedTagIDs.count >= 3 {
                                                  showingMaxTagsAlert = true
                                              } else {
                                                  showingNewTagSheet = true
@@ -893,7 +893,7 @@ struct AddSimpleChecklistView: View {
                                 isSettingDueDate ? (dueDate ?? Date()) : nil,
                                 isSettingDueDate ? remind : false,
 
-                                selectedTags,
+                                tags.filter { selectedTagIDs.contains($0.id) },
                                 recurrenceRule
                             )
                             dismiss()
@@ -925,7 +925,7 @@ struct AddSimpleChecklistView: View {
                     let newTag = Tag(name: name, colorHex: hexString, isTextWhite: isTextWhite)
                     modelContext.insert(newTag)
                     try? modelContext.save()
-                    selectedTags.append(newTag)
+                    selectedTagIDs.insert(newTag.id)
                     showingNewTagSheet = false
                 }
             }
@@ -950,7 +950,7 @@ struct AddSimpleChecklistView: View {
                 dueDate = checklist.dueDate
                 remind = checklist.remind
                 isSettingDueDate = checklist.dueDate != nil
-                selectedTags = checklist.tags
+                selectedTagIDs = Set(checklist.tags.map { $0.id })
                 recurrenceRule = checklist.recurrenceRule
             } else {
                 // Explicitly reset ALL state for new tasks
@@ -960,7 +960,7 @@ struct AddSimpleChecklistView: View {
                 remind = true
                 isSettingDueDate = false
                 isSettingDueDate = false
-                selectedTags = []
+                selectedTagIDs = []
                 recurrenceRule = nil
             }
         }

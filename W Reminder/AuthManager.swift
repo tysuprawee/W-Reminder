@@ -23,7 +23,7 @@ final class AuthManager {
     var isLoading = false
     var errorMessage: String?
     var successMessage: String?
-    
+    var shouldShowWelcomeBack = false    
     private init() {
         self.client = SupabaseClient(
             supabaseURL: SupabaseConfig.projectURL,

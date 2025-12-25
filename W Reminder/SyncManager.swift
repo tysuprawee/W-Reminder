@@ -100,27 +100,35 @@ final class SyncManager {
     
     // Track current sync task to allow waiting
     private var syncTask: Task<Bool, Never>?
+    private var nextSyncTask: Task<Bool, Never>?
 
     @discardableResult
     func sync(container: ModelContainer, silent: Bool = false) async -> Bool {
-        // 1. Check if a sync is already running. If so, wait for it.
-        let existingTask: Task<Bool, Never>? = await MainActor.run {
-            // If this request is NOT silent, ensure we show the loading UI immediately
-            // even if we are attaching to an existing background task.
-            if !silent {
-                self.isSyncing = true
-            }
-            
-            // Return existing task if any (checking syncTask instead of isSyncing)
-            return syncTask
+        // 1. If we have a 'Next' task waiting, join it.
+        //    (This ensures we don't queue 100 tasks. 1 running + 1 waiting is enough to capture 'latest' state)
+        if let next = nextSyncTask {
+            return await next.value
         }
         
-        if let existingTask {
-            print("Sync: Already in progress, waiting...")
-            return await existingTask.value
+        // 2. If a sync is currently running, we must schedule a Next task.
+        if let current = syncTask {
+            // If already queued? (Checked above). So we create one.
+            print("Sync: Already in progress, scheduling next...")
+            
+            let next = Task {
+                // Wait for current to finish
+                _ = await current.value
+                // Run new sync
+                return await self.performSync(container: container)
+            }
+            
+            self.nextSyncTask = next
+            let result = await next.value
+            self.nextSyncTask = nil // Cleanup after execution
+            return result
         }
 
-        // 2. Start new sync task
+        // 3. Nothing running. Start immediately.
         let task = Task {
              return await performSync(container: container)
         }

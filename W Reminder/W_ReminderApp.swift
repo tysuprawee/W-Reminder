@@ -12,6 +12,7 @@ import UserNotifications
 @main
 struct W_ReminderApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
+    @Environment(\.scenePhase) private var scenePhase
     
     // Use the shared persistence controller (App Group aware)
     var sharedModelContainer: ModelContainer = SharedPersistence.shared.container
@@ -48,10 +49,9 @@ struct W_ReminderApp: App {
                         Text(remoteConfig.updateMessage)
                             .multilineTextAlignment(.center)
                             .foregroundStyle(Theme.default.secondary)
-                            .foregroundStyle(Theme.default.secondary)
                             .padding(.horizontal)
                         
-                        // Show Current Version
+                // Show Current Version
                         if let currentVersion = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String {
                             Text("Your Version: \(currentVersion)")
                                 .font(.caption)
@@ -80,6 +80,12 @@ struct W_ReminderApp: App {
             }
             .task {
                 remoteConfig.checkAppVersion()
+            }
+            .onChange(of: scenePhase) { _, newPhase in
+                if newPhase == .active {
+                    print("DEBUG: App became active, checking version...")
+                    remoteConfig.checkAppVersion()
+                }
             }
         }
         .modelContainer(sharedModelContainer)
