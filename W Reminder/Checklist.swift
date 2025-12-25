@@ -126,6 +126,10 @@ struct RecurrenceHelper {
             let calendar = Calendar.current
             let day = calendar.component(.day, from: date)
             return "Reminds every month on the \(ordinalString(from: day))"
+        case "yearly":
+            let formatter = DateFormatter()
+            formatter.dateFormat = "MMMM d"
+            return "Reminds every year on \(formatter.string(from: date))"
         default:
             return ""
         }

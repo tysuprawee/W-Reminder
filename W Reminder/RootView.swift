@@ -292,14 +292,18 @@ struct SettingsView: View {
     }
 
     @State private var authManager = AuthManager.shared
+    @StateObject private var themeManager = ThemeManager.shared // Observe
     @State private var showLoginSheet = false
     @State private var showRedeemSheet = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
     @State private var showLogoutAlert = false
+    @State private var hasCopiedCode = false
         
     var body: some View {
         NavigationStack {
             List {
+
+// ...
                 Section("Account") {
                     if authManager.isAuthenticated {
                         HStack {
@@ -343,12 +347,34 @@ struct SettingsView: View {
                                    if let code = authManager.profile?.inviteCode {
                                        Button {
                                            UIPasteboard.general.string = code
-                                            // Feedback via Haptics or just visual would be good, 
-                                            // but for now the button press default animation is okay.
+                                           // Feedback
+                                           let generator = UINotificationFeedbackGenerator()
+                                           generator.notificationOccurred(.success)
+                                           
+                                           withAnimation { hasCopiedCode = true }
+                                           DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                               withAnimation { hasCopiedCode = false }
+                                           }
                                        } label: {
-                                           Image(systemName: "doc.on.doc")
-                                               .font(.caption)
-                                               .foregroundStyle(.secondary)
+                                           if hasCopiedCode {
+                                               HStack(spacing: 4) {
+                                                   Image(systemName: "checkmark")
+                                                   Text("Copied")
+                                               }
+                                               .font(.caption.bold())
+                                               .foregroundStyle(.green)
+                                               .padding(.horizontal, 8)
+                                               .padding(.vertical, 4)
+                                               .background(Color.green.opacity(0.1))
+                                               .clipShape(Capsule())
+                                           } else {
+                                               Image(systemName: "doc.on.doc")
+                                                   .font(.caption)
+                                                   .foregroundStyle(.secondary)
+                                                   .padding(8) // Increase touch area
+                                                   .background(Color.gray.opacity(0.1))
+                                                   .clipShape(Circle())
+                                           }
                                        }
                                        .buttonStyle(.plain)
                                    }
@@ -358,13 +384,19 @@ struct SettingsView: View {
                            Spacer()
                            
                            if authManager.profile?.redeemedByCode == nil {
-                               Button("Enter Code") {
-                                   showRedeemSheet = true
-                               }
-                               .buttonStyle(.bordered)
-                               .tint(theme.accent)
-                               .controlSize(.small)
-                           } else {
+                                Button {
+                                    showRedeemSheet = true
+                                } label: {
+                                    Text("Enter Code")
+                                        .font(.subheadline.bold())
+                                        .padding(.horizontal, 12)
+                                        .padding(.vertical, 6)
+                                        .contentShape(Rectangle()) // Hitbox fix
+                                }
+                                .buttonStyle(.bordered)
+                                .tint(theme.accent)
+                                .controlSize(.small)
+                            } else {
                                VStack {
                                    Image(systemName: "checkmark.seal.fill")
                                        .foregroundStyle(.green)
@@ -519,6 +551,12 @@ struct SettingsView: View {
             .sheet(isPresented: $showRedeemSheet) {
                 RedeemInviteView(theme: theme)
                     .presentationDetents([.medium])
+            }
+            .sheet(isPresented: $themeManager.showUnlockCelebration) {
+                if let newTheme = themeManager.newlyUnlockedTheme {
+                    ThemeUnlockSheet(theme: theme, newTheme: newTheme)
+                        .presentationDetents([.fraction(0.5)])
+                }
             }
             .alert("Sync Failed", isPresented: $showLogoutAlert) {
                 Button("Force Sign Out", role: .destructive) {
@@ -675,6 +713,7 @@ struct RedeemInviteView: View {
     @State private var isSuccess = false
     @State private var isLoading = false
     @Environment(\.dismiss) private var dismiss
+    @StateObject private var themeManager = ThemeManager.shared
     
     var body: some View {
         VStack(spacing: 24) {
@@ -717,7 +756,14 @@ struct RedeemInviteView: View {
             .disabled(code.count < 3 || isLoading)
         }
         .padding()
+        .padding()
         .presentationDetents([.medium])
+        .sheet(isPresented: $themeManager.showUnlockCelebration) {
+            if let newTheme = themeManager.newlyUnlockedTheme {
+                ThemeUnlockSheet(theme: theme, newTheme: newTheme)
+                    .presentationDetents([.fraction(0.5)])
+            }
+        }
     }
     
     func submit() {

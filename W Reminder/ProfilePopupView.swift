@@ -13,6 +13,7 @@ struct ProfilePopupView: View {
     @State private var streakManager = StreakManager.shared
     @State private var showingPremium = false
     @State private var showingStats = false
+    @State private var selectedAchievement: Achievement? // For details popup
     
     var body: some View {
         ScrollView {
@@ -158,45 +159,7 @@ struct ProfilePopupView: View {
                     )
                 }
                 
-                // Premium Banner
-                /*
-                Button {
-                    showingPremium = true
-                } label: {
-                    HStack {
-                        Image(systemName: "crown.fill")
-                            .font(.title2)
-                            .foregroundStyle(.yellow)
-                        
-                        VStack(alignment: .leading, spacing: 4) {
-                            Text("W Reminder Pro")
-                                .font(.headline.bold())
-                                .foregroundStyle(.white)
-                            Text("Unlock Insights, Icons & More")
-                                .font(.caption)
-                                .foregroundStyle(.white.opacity(0.9))
-                        }
-                        .padding(.leading, 4)
-                        
-                        Spacer()
-                        
-                        Text("Upgrade")
-                            .font(.caption.bold())
-                            .foregroundStyle(.orange)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 6)
-                            .background(Capsule().fill(.white))
-                    }
-                    .padding()
-                    .background(
-                        LinearGradient(colors: [.orange, .pink], startPoint: .topLeading, endPoint: .bottomTrailing)
-                    )
-                    .clipShape(RoundedRectangle(cornerRadius: 20))
-                    .shadow(color: .orange.opacity(0.3), radius: 8, y: 4)
-                }
-                */
-                
-                // Achievements List (Trophy Room Style)
+                // Achievements Grid (Trophy Room Style)
                 VStack(alignment: .leading, spacing: 16) {
                     HStack {
                         Text("Trophy Room")
@@ -205,57 +168,17 @@ struct ProfilePopupView: View {
                     }
                     .padding(.horizontal)
                     
-                    ScrollView(.horizontal, showsIndicators: false) {
-                        HStack(spacing: 16) {
-                            ForEach(Achievement.all) { achievement in
-                                let isUnlocked = levelManager.unlockedAchievementIds.contains(achievement.id)
-                                TrophyView(achievement: achievement, isUnlocked: isUnlocked, theme: theme)
-                            }
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 80), spacing: 16)], spacing: 24) {
+                        ForEach(Achievement.all) { achievement in
+                            let isUnlocked = levelManager.unlockedAchievementIds.contains(achievement.id)
+                            TrophyView(achievement: achievement, isUnlocked: isUnlocked, theme: theme)
+                                .onTapGesture {
+                                    // Show details
+                                    selectedAchievement = achievement
+                                }
                         }
-                        .padding(.horizontal)
                     }
-                }
-                .padding(.bottom)
-                
-                // Detailed List (optional, maybe hidden or collapsible in premium design? Keeping for utility)
-                VStack(alignment: .leading, spacing: 16) {
-                    Text("All Achievements")
-                        .font(.headline)
-                        .padding(.horizontal)
-                    
-                    ForEach(Achievement.all) { achievement in
-                        let isUnlocked = levelManager.unlockedAchievementIds.contains(achievement.id)
-                        HStack(spacing: 16) {
-                            ZStack {
-                                Circle()
-                                    .fill(isUnlocked ? theme.accent.opacity(0.15) : Color.gray.opacity(0.1))
-                                    .frame(width: 44, height: 44)
-                                
-                                Image(systemName: achievement.icon)
-                                    .font(.title3)
-                                    .foregroundStyle(isUnlocked ? theme.accent : .gray)
-                            }
-                            
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(achievement.title)
-                                    .font(.subheadline.bold())
-                                    .foregroundStyle(isUnlocked ? theme.primary : .secondary)
-                                Text(achievement.description)
-                                    .font(.caption)
-                                    .foregroundStyle(.secondary)
-                            }
-                            
-                            Spacer()
-                            
-                            if isUnlocked {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundStyle(.green)
-                            }
-                        }
-                        .padding(.horizontal)
-                        .opacity(isUnlocked ? 1.0 : 0.5)
-                        .grayscale(isUnlocked ? 0 : 1)
-                    }
+                    .padding(.horizontal)
                 }
                 .padding(.bottom, 40)
             }
@@ -268,6 +191,76 @@ struct ProfilePopupView: View {
         .sheet(isPresented: $showingStats) {
             StatisticsView(theme: theme)
                 .presentationDetents([.medium, .large])
+        }
+        .sheet(item: $selectedAchievement) { achievement in
+            AchievementDetailSheet(achievement: achievement, theme: theme)
+                .presentationDetents([.fraction(0.4)])
+                .presentationDragIndicator(.visible)
+        }
+    }
+}
+
+struct AchievementDetailSheet: View {
+    let achievement: Achievement
+    let theme: Theme
+    @State private var levelManager = LevelManager.shared
+    @Environment(\.dismiss) var dismiss
+    
+    var body: some View {
+        ZStack {
+            theme.background.ignoresSafeArea()
+            
+            VStack(spacing: 20) {
+                // Icon
+                let isUnlocked = levelManager.unlockedAchievementIds.contains(achievement.id)
+                
+                ZStack {
+                    Circle()
+                        .fill(isUnlocked ? theme.accent.opacity(0.15) : Color.gray.opacity(0.1))
+                        .frame(width: 80, height: 80)
+                    
+                    Image(systemName: achievement.icon)
+                        .font(.system(size: 40))
+                        .foregroundStyle(isUnlocked ? theme.accent : .gray)
+                        .symbolEffect(.bounce, value: isUnlocked) // Subtle bounce if iOS 17+
+                }
+                .shadow(color: isUnlocked ? theme.accent.opacity(0.4) : .clear, radius: 10)
+                
+                // Text Info
+                VStack(spacing: 8) {
+                    Text(achievement.title)
+                        .font(.title2.bold())
+                        .foregroundStyle(theme.primary)
+                        .multilineTextAlignment(.center)
+                    
+                    Text(achievement.description)
+                        .font(.body)
+                        .foregroundStyle(theme.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                }
+                
+                // Status Badge
+                HStack(spacing: 6) {
+                    Image(systemName: isUnlocked ? "checkmark.seal.fill" : "lock.fill")
+                    Text(isUnlocked ? "Unlocked" : "Locked")
+                }
+                .font(.caption.bold())
+                .foregroundStyle(isUnlocked ? .white : .secondary)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background(Capsule().fill(isUnlocked ? theme.accent : Color.gray.opacity(0.2)))
+                
+                Spacer()
+                
+                Button("Close") {
+                    dismiss()
+                }
+                .font(.headline)
+                .foregroundStyle(theme.secondary)
+                .padding(.bottom)
+            }
+            .padding(.top, 40)
         }
     }
 }

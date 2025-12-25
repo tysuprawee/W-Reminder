@@ -11,6 +11,7 @@ import WidgetKit
 
 /// Manages user streaks for habit building.
 @Observable
+@MainActor
 final class StreakManager {
     static let shared = StreakManager()
     

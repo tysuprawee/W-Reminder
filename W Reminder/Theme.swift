@@ -62,7 +62,7 @@ struct Theme: Identifiable, Hashable {
         accent: Color(hex: "#BB86FC"),
         background: Color(hex: "#121212"),
         isDark: true,
-        unlockRequirement: .level(3) // Locked now
+        unlockRequirement: .level(3) // Easy
     )
 
     static let pastelDream = Theme(
@@ -73,7 +73,7 @@ struct Theme: Identifiable, Hashable {
         accent: Color(hex: "#D81B60"),
         background: Color(hex: "#FFF0F5"),
         isDark: false,
-        unlockRequirement: .streak(3) // Easy Streak
+        unlockRequirement: .streak(3) // Easy
     )
 
     static let mintFresh = Theme(
@@ -84,7 +84,7 @@ struct Theme: Identifiable, Hashable {
         accent: Color(hex: "#00897B"),
         background: Color(hex: "#E8F5E9"),
         isDark: false,
-        unlockRequirement: .level(5)
+        unlockRequirement: .level(5) // Easy
     )
 
     static let lavenderHaze = Theme(

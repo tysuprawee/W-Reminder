@@ -36,6 +36,7 @@ final class AuthManager {
             self.session = try await client.auth.session
             self.user = try await client.auth.user()
             await fetchProfile()
+            await subscribeToProfileUpdates() // Start Realtime
         } catch {
             print("Auth initialization error: \(error)")
         }
@@ -52,9 +53,39 @@ final class AuthManager {
             self.session = session
             self.user = session.user
             await fetchProfile()
+            await subscribeToProfileUpdates() // Start Realtime
         } catch {
             errorMessage = error.localizedDescription
             throw error
+        }
+    }
+    
+    // ...
+    
+    // MARK: - Realtime Subscription
+    
+    func subscribeToProfileUpdates() async {
+        guard let userId = user?.id else { return }
+        print("🔌 Setting up Realtime for user: \(userId)")
+        
+        let channel = client.channel("public:profiles:\(userId)")
+        
+        // Listen for UPDATES specifically
+        let subscription = channel.postgresChange(
+            AnyAction.self,
+            schema: "public",
+            table: "profiles",
+            filter: "id=eq.\(userId)"
+        )
+        
+        await channel.subscribe()
+        print("✅ Realtime Subscribed!")
+        
+        Task {
+            for await _ in subscription {
+                print("⚡️ REALTIME EVENT RECEIVED: Profile updated!")
+                await fetchProfile()
+            }
         }
     }
     

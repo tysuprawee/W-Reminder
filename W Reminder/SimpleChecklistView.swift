@@ -10,15 +10,23 @@ struct SimpleChecklistView: View {
     @Query private var tags: [Tag]
 
     @State private var showingAdd = false
+    @State private var showingSmartInput = false
+    @State private var showingSettings = false // Added
+    @State private var showingProfile = false  // Added
     @State private var editing: SimpleChecklist?
+    @State private var scrollToID: UUID? = nil
     @State private var showPermissionAlert = false
     @AppStorage("checklistSortOption") private var sortOption: SortOption = .manual
-    @State private var filterTagID: UUID? = nil // nil = all
+    @State private var filterTagID: UUID? = nil
     @State private var showOnlyStarred = false
-    @State private var refreshID = UUID() // Force refresh TimelineView
+    @State private var refreshID = UUID()
     @State private var showStreakInfo = false
-    @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true // Listen to setting
+    @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
     
+    // Managers
+    @StateObject private var themeSelection = ThemeSelectionManager.shared
+    @StateObject private var themeManager = ThemeManager.shared
+
     // Batch Completion State
     @State private var pendingCompletionIDs: Set<UUID> = []
     @State private var batchCompletionTask: Task<Void, Never>? = nil
@@ -197,6 +205,23 @@ struct SimpleChecklistView: View {
                     Spacer()
                     HStack {
                         Spacer()
+                        
+                        // 1. AI Assistant Button
+                        Button {
+                           showingSmartInput = true
+                        } label: {
+                            Image(systemName: "sparkles")
+                                .font(.title2.bold())
+                                .foregroundStyle(.white)
+                                .frame(width: 50, height: 50)
+                                .background(
+                                    LinearGradient(colors: [Color.purple, Color.blue], startPoint: .topLeading, endPoint: .bottomTrailing)
+                                )
+                                .clipShape(Circle())
+                                .shadow(color: .purple.opacity(0.4), radius: 8, x: 0, y: 4)
+                        }
+                        .padding(.trailing, 16)
+                        
                         Button {
                             editing = nil
                             showingAdd = true
@@ -211,14 +236,35 @@ struct SimpleChecklistView: View {
                                         .shadow(color: theme.accent.opacity(0.4), radius: 10, x: 0, y: 5)
                                 )
                         }
-                        .padding()
                     }
+                    .padding()
                 }
+            } // End ZStack
+            
+            // --- Sheets & Modals (Attached to ZStack/NavStack) ---
+            
+            // 1. Smart Input
+            .sheet(isPresented: $showingSmartInput) {
+                SmartTaskInputSheet(
+                    theme: theme,
+                    onCommit: { title, notes, date, recurrence in
+                        save(
+                            original: nil,
+                            title: title,
+                            notes: notes,
+                            dueDate: date ?? (recurrence != nil ? Date() : nil),
+                            remind: date != nil || recurrence != nil,
+                            tags: [],
+                            recurrenceRule: recurrence
+                        )
+                    }
+                )
+                .presentationDetents([.fraction(0.40)])
+                .presentationDragIndicator(.visible)
             }
-            // Hide standard navigation bar
-            .toolbar(.hidden, for: .navigationBar)
-            // Sheet for Creating New Simple Checklist
-            .sheet(isPresented: $showingAdd) {
+            
+            // 2. Add Sheet
+            .sheet(isPresented: $showingAdd) { // Changed from showingAddSheet to showingAdd
                 AddSimpleChecklistView(
                     checklist: nil,
                     theme: theme
@@ -234,8 +280,9 @@ struct SimpleChecklistView: View {
                     )
                 }
             }
-            // Sheet for Editing Existing Simple Checklist
-            .sheet(item: $editing) { checklist in
+            
+            // 3. Edit Sheet
+            .sheet(item: $editing) { checklist in // Changed from editingChecklist to editing
                 AddSimpleChecklistView(
                     checklist: checklist,
                     theme: theme
@@ -251,12 +298,35 @@ struct SimpleChecklistView: View {
                     )
                 }
             }
+            // 4. Settings
+            .sheet(isPresented: $showingSettings) {
+                // If we want the full SettingsView, we need many bindings.
+                // For now, let's just show Theme Selection as "Settings" or create a simplified view.
+                // Or better, use the new Manager to pass the binding.
+                ThemeSelectionView(
+                    selectedThemeId: $themeSelection.selectedThemeId,
+                    currentTheme: themeSelection.currentTheme
+                )
+            }
+            
+            // 5. Profile
+            .sheet(isPresented: $showingProfile) {
+                ProfilePopupView(theme: theme)
+            }
+            
+            // 6. Theme Unlock Celebration
+            .sheet(isPresented: $themeManager.showUnlockCelebration) {
+                if let newTheme = themeManager.newlyUnlockedTheme {
+                    ThemeUnlockSheet(theme: theme, newTheme: newTheme)
+                        .presentationDetents([.fraction(0.5)])
+                }
+            }
+            
+            // 7. Notification Permission Alert
             .alert("Notifications are off", isPresented: $showPermissionAlert) {
                 Button("Allow Now") {
                     NotificationManager.shared.requestAuthorization { granted in
-                        if granted {
-                            showPermissionAlert = false
-                        }
+                        if granted { showPermissionAlert = false }
                     }
                 }
                 Button("Open Settings") {
@@ -264,16 +334,16 @@ struct SimpleChecklistView: View {
                         UIApplication.shared.open(url)
                     }
                 }
-                Button("Maybe Later", role: .cancel) {
-                    showPermissionAlert = false
-                }
+                Button("Maybe Later", role: .cancel) { showPermissionAlert = false }
             } message: {
                 Text("Enable notifications in Settings to get reminder alerts.")
             }
-        }
+            
+        } // End NavigationStack
         .tint(theme.accent)
+        .toolbar(.hidden, for: .navigationBar) // Hide standard navigation bar
         .background(theme.background.ignoresSafeArea())
-    }
+    } // End Body
 
     private func save(
         original: SimpleChecklist?,
@@ -295,6 +365,9 @@ struct SimpleChecklistView: View {
             checklist.recurrenceRule = recurrenceRule
             checklist.updatedAt = Date() // Update timestamp for sync
         } else {
+            // New Item: Calculate Order (Append to bottom)
+            let maxOrder = checklists.map(\.userOrder).max() ?? -1
+            
             checklist = SimpleChecklist(
                 title: title,
                 notes: notes,
@@ -302,6 +375,8 @@ struct SimpleChecklistView: View {
                 remind: remind,
                 isDone: false,
                 tags: tags,
+                isStarred: false,
+                userOrder: maxOrder + 1,
                 recurrenceRule: recurrenceRule
             )
             modelContext.insert(checklist)
@@ -314,6 +389,13 @@ struct SimpleChecklistView: View {
         NotificationManager.shared.scheduleNotification(for: checklist)
         verifyNotificationPermission()
         editing = nil
+        
+        // Auto-Scroll to new Item
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+            withAnimation {
+                scrollToID = checklist.id
+            }
+        }
         
         // Auto-sync on Save
         Task {
@@ -342,9 +424,10 @@ struct SimpleChecklistView: View {
     }
 
     private func list(active: [SimpleChecklist]) -> some View {
-        List {
-            ForEach(active) { checklist in
-                SimpleChecklistRow(
+        ScrollViewReader { proxy in
+            List {
+                ForEach(active) { checklist in
+                    SimpleChecklistRow(
                     checklist: checklist,
                     theme: theme,
                     isPendingCompletion: pendingCompletionIDs.contains(checklist.id),
@@ -438,7 +521,16 @@ struct SimpleChecklistView: View {
             try? await Task.sleep(nanoseconds: 300_000_000)
         }
         .id(refreshID) // Force view refresh when refreshID changes
-    }
+        .onChange(of: scrollToID) { _, newID in
+            if let target = newID {
+                withAnimation {
+                    proxy.scrollTo(target, anchor: .bottom)
+                }
+                scrollToID = nil // Reset immediately
+            }
+        }
+    } // End ScrollViewReader
+    } // End list function
 
     private func commitPendingCompletions() async {
         guard !pendingCompletionIDs.isEmpty else { return }
@@ -449,6 +541,7 @@ struct SimpleChecklistView: View {
         
         await MainActor.run {
             var tasksCompleted = 0
+            var recurrenceItemsToInsert: [SimpleChecklist] = [] // Store new items temporarily
             
             // 1. Update State within Animation for smooth "Slide Up"
             withAnimation(.default) {
@@ -464,7 +557,7 @@ struct SimpleChecklistView: View {
                             
                             tasksCompleted += 1
                             
-                            // Recurrence
+                            // Recurrence Logic: Prepare new items but DO NOT insert yet
                              if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
                                   if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
                                       let newItem = SimpleChecklist(
@@ -473,18 +566,24 @@ struct SimpleChecklistView: View {
                                           dueDate: nextDate,
                                           remind: checklist.remind,
                                           isDone: false,
-                                          tags: checklist.tags,
+                                          tags: checklist.tags, // Tags relation copy? Need to verify if tags persist
                                           isStarred: checklist.isStarred,
                                           userOrder: checklist.userOrder,
                                           recurrenceRule: rule
                                       )
-                                      modelContext.insert(newItem)
+                                      recurrenceItemsToInsert.append(newItem)
                                   }
                              }
                         }
                     }
                 }
                 
+                // Save changes (Completion) to DB immediately
+                 try? modelContext.save()
+            } // End first block
+            
+            // 2. Refresh UI (Remove completed rows) in a separate animation block
+            withAnimation(.default) {
                 // Clear IDs triggers the removal from the "Active" filter
                 pendingCompletionIDs.removeAll()
             }
@@ -494,12 +593,24 @@ struct SimpleChecklistView: View {
                 StreakManager.shared.incrementStreak()
             }
             
-            // 3. Save & Sync (After animation triggers)
-            // We delay save slightly to let animation start? No, save immediately is fine for data, 
-            // but we want the View to animate the state change first.
-            // SwiftData auto-saves on run loop often, but explicit save is good.
+            // 3. Delayed Insertion of Recurring Tasks (Safe from List Crashes)
+            if !recurrenceItemsToInsert.isEmpty {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.45) {
+                    print("Inserting \(recurrenceItemsToInsert.count) recurring items...")
+                    withAnimation {
+                        for item in recurrenceItemsToInsert {
+                             // Fix: Tags might need valid context if they are not fetched
+                             // But SimpleChecklist init takes [Tag]. If these Tags are from the same Context, it's fine.
+                             modelContext.insert(item)
+                        }
+                    }
+                    try? modelContext.save()
+                    // Re-sync after insertion
+                    Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+                }
+            }
             
-            try? modelContext.save()
+            // 4. General Sync
             WidgetCenter.shared.reloadAllTimelines()
             Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
         }
@@ -599,6 +710,19 @@ struct AddSimpleChecklistView: View {
     @State private var isSettingDueDate: Bool = false
     @State private var selectedTagIDs: Set<UUID> = []
     @State private var recurrenceRule: String? = nil
+    @State private var showingAddSheet = false
+    @State private var showingEditSheet = false
+    @State private var editingChecklist: SimpleChecklist?
+    @State private var showingSettings = false
+    @State private var showingProfile = false // Profile popup state
+    @State private var showingSmartInput = false // "What's on your mind?"
+    
+    @State private var scrollToID: UUID?
+    
+    // Managers
+    @StateObject private var themeSelection = ThemeSelectionManager.shared
+    @StateObject private var themeManager = ThemeManager.shared // Observes unlocks
+    
     @State private var detectedDate: SmartDateResult? = nil
     @State private var showingMaxTagsAlert = false
     
@@ -788,6 +912,9 @@ struct AddSimpleChecklistView: View {
                                             if newValue { 
                                                 remind = true 
                                                 if dueDate == nil { dueDate = Date() }
+                                            } else {
+                                                // If deadline is OFF, clear recurrence
+                                                recurrenceRule = nil
                                             }
                                         }
                                 }
@@ -827,42 +954,45 @@ struct AddSimpleChecklistView: View {
                             .padding(.horizontal)
                             .padding(.bottom, 20)
                             
-                            // Recurrence Section
-                            VStack(alignment: .leading, spacing: 12) {
-                                Text("Repeat")
-                                    .font(.headline)
-                                    .foregroundStyle(theme.secondary)
-                                    .padding(.horizontal)
-                                
-                                HStack {
-                                    Image(systemName: "repeat")
-                                        .foregroundStyle(theme.accent)
+                            // Recurrence Section (Only visible if Deadline is ON)
+                            if isSettingDueDate {
+                                VStack(alignment: .leading, spacing: 12) {
+                                    Text("Repeat")
+                                        .font(.headline)
+                                        .foregroundStyle(theme.secondary)
+                                        .padding(.horizontal)
                                     
-                                    Picker("Recurrence", selection: $recurrenceRule) {
-                                        Text("Never").tag(String?.none)
-                                        Text("Daily").tag(String?.some("daily"))
-                                        Text("Weekly").tag(String?.some("weekly"))
-                                        Text("Monthly").tag(String?.some("monthly"))
+                                    HStack {
+                                        Image(systemName: "repeat")
+                                            .foregroundStyle(theme.accent)
+                                        
+                                        Picker("Recurrence", selection: $recurrenceRule) {
+                                            Text("Never").tag(String?.none) // Explicit nil
+                                            Text("Daily").tag(Optional<String>.some("daily"))
+                                            Text("Weekly").tag(Optional<String>.some("weekly"))
+                                            Text("Monthly").tag(Optional<String>.some("monthly"))
+                                            Text("Yearly").tag(Optional<String>.some("yearly"))
+                                        }
+                                        .pickerStyle(.menu)
+                                        .accentColor(theme.primary)
+                                        
+                                        Spacer()
                                     }
-                                    .pickerStyle(.menu)
-                                    .accentColor(theme.primary)
+                                    .padding()
+                                    .background(theme.primary.opacity(0.05))
+                                    .clipShape(RoundedRectangle(cornerRadius: 16))
+                                    .padding(.horizontal)
                                     
-                                    Spacer()
+                                    if let rule = recurrenceRule {
+                                        Text(RecurrenceHelper.description(for: rule, date: isSettingDueDate ? (dueDate ?? Date()) : Date()))
+                                            .font(.caption)
+                                            .foregroundStyle(theme.accent)
+                                            .padding(.horizontal, 32)
+                                            .transition(.opacity)
+                                    }
                                 }
-                                .padding()
-                                .background(theme.primary.opacity(0.05))
-                                .clipShape(RoundedRectangle(cornerRadius: 16))
-                                .padding(.horizontal)
-                                
-                                if let rule = recurrenceRule {
-                                    Text(RecurrenceHelper.description(for: rule, date: isSettingDueDate ? (dueDate ?? Date()) : Date()))
-                                        .font(.caption)
-                                        .foregroundStyle(theme.accent)
-                                        .padding(.horizontal, 32)
-                                        .transition(.opacity)
-                                }
+                                .padding(.bottom, 80)
                             }
-                            .padding(.bottom, 80)
                         }
                         .padding(.vertical)
                     }
@@ -1040,7 +1170,7 @@ struct SimpleChecklistRow: View {
                         Image(systemName: "clock")
                             .font(.caption)
                         Text(timeRemaining(until: dueDate))
-                            .font(.caption)
+                            .font(.caption.bold())
                             .accessibilityIdentifier("timeRemainingLabel_\(checklist.title)")
                     }
                     .foregroundStyle(deadlineColor(for: dueDate))
@@ -1102,7 +1232,7 @@ struct SimpleChecklistRow: View {
             // Past due
             return .red
         } else if timeRemaining < 86400 { // Less than 24 hours
-            return .yellow
+            return .orange
         } else {
             // More than 1 day
             return theme.secondary
@@ -1235,5 +1365,4 @@ struct FlowLayout: Layout {
     }
 }
 
-
-
+// ThemeUnlockSheet is now in its own file
