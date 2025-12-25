@@ -277,7 +277,7 @@ final class SyncManager {
             }
             
             for item in list.items {
-                milestoneItemDTOs.append(CloudMilestoneItem(id: item.id, milestoneId: list.id, text: item.text, isDone: item.isDone, position: item.position))
+                milestoneItemDTOs.append(CloudMilestoneItem(id: item.id, milestoneId: list.id, text: item.text, isDone: item.isDone, position: item.position, dueDate: item.dueDate))
             }
         }
         
@@ -366,18 +366,55 @@ final class SyncManager {
         let itemsByMilestone = Dictionary(grouping: payload.milestoneItems, by: { $0.milestoneId })
 
         for dto in payload.milestones {
+            // 1. Upsert Milestone Parent
             try await client.from("milestones").upsert(dto).execute()
             
-            // Tags
+            // 2. Tags Logic - Reverted to Simple Delete-Insert (Safer for Junction Tables without explicit IDs)
+            // This prevents crashes if 'milestone_tags' lacks an 'id' column for filtering.
             try await client.from("milestone_tags").delete().eq("milestone_id", value: dto.id).execute()
             if let specificLinks = linksByMilestone[dto.id], !specificLinks.isEmpty {
-                try await client.from("milestone_tags").insert(specificLinks).execute()
+                 try await client.from("milestone_tags").insert(specificLinks).execute()
             }
             
-            // Items
-            try await client.from("milestone_items").delete().eq("milestone_id", value: dto.id).execute()
+            // 3. Robust Items Sync (Fetch Diff Strategy)
+            // Strategy: Fetch remote IDs -> Calc Diff -> Delete Extras -> Upsert Local.
+            // This prevents "Delete All" data loss and avoids complex query crashes.
+            
+            struct ItemID: Codable { var id: UUID }
+            
+            // A. Fetch existing Remote IDs for this milestone
+            let remoteItems: [ItemID] = try await client
+                .from("milestone_items")
+                .select("id")
+                .eq("milestone_id", value: dto.id)
+                .execute()
+                .value
+            
+            let remoteIDs = Set(remoteItems.map { $0.id })
+            
             if let specificItems = itemsByMilestone[dto.id], !specificItems.isEmpty {
-                try await client.from("milestone_items").insert(specificItems).execute()
+                let localIDs = Set(specificItems.map { $0.id })
+                
+                // B. Identify IDs to Delete (Remote but not Local)
+                let idsToDelete = remoteIDs.subtracting(localIDs)
+                if !idsToDelete.isEmpty {
+                    try await client.from("milestone_items")
+                        .delete()
+                        .in("id", values: Array(idsToDelete)) // Explicit delete list
+                        .execute()
+                }
+                
+                // C. Upsert Local Items (Creates new, updates existing)
+                try await client.from("milestone_items").upsert(specificItems).execute()
+                
+            } else {
+                // Local is empty -> Delete all Remote
+                if !remoteIDs.isEmpty {
+                    try await client.from("milestone_items")
+                        .delete()
+                        .eq("milestone_id", value: dto.id)
+                        .execute()
+                }
             }
         }
     }
@@ -547,6 +584,8 @@ final class SyncManager {
 
             let listToUpdate: Checklist
             
+            var forceUpdate = false
+            
             if let existing = localLists.first(where: { $0.id == listID }) {
                 listToUpdate = existing
                 
@@ -607,14 +646,16 @@ final class SyncManager {
                     }
                     listToUpdate.tags = newTags
                 }
+                
+                // Force Update Items for new Valid Record
+                forceUpdate = true
             }
             
-            // Merge Items (Subtasks) - Trust Cloud for now (complex to track timestamps per item)
-            // Or only if Cloud Milestone is newer?
+            // Merge Items (Subtasks)
             let cloudUpdated = cloudList.updatedAt ?? .distantPast
             let localUpdated = listToUpdate.updatedAt
 
-            if cloudUpdated > localUpdated {
+            if cloudUpdated > localUpdated || forceUpdate {
                 let currentCloudItems = itemsByMilestone[listID] ?? []
                 var processedItemIDs = Set<UUID>()
                 
@@ -624,8 +665,9 @@ final class SyncManager {
                         existingItem.text = cloudItem.text
                         existingItem.isDone = cloudItem.isDone 
                         existingItem.position = cloudItem.position
+                        existingItem.dueDate = cloudItem.dueDate
                     } else {
-                        let newItem = ChecklistItem(text: cloudItem.text, isDone: cloudItem.isDone, position: cloudItem.position)
+                        let newItem = ChecklistItem(text: cloudItem.text, isDone: cloudItem.isDone, position: cloudItem.position, dueDate: cloudItem.dueDate)
                         newItem.id = cloudItem.id
                         newItem.checklist = listToUpdate
                         listToUpdate.items.append(newItem)
@@ -755,6 +797,7 @@ struct CloudMilestoneItem: Codable, Identifiable {
     var text: String
     var isDone: Bool
     var position: Int
+    var dueDate: Date?
     
     enum CodingKeys: String, CodingKey {
         case id
@@ -762,6 +805,7 @@ struct CloudMilestoneItem: Codable, Identifiable {
         case text
         case isDone = "is_done"
         case position
+        case dueDate = "due_date"
     }
 }
 

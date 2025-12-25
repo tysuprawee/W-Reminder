@@ -174,25 +174,24 @@ struct MilestoneView: View {
 
                     // Main List with Live Timer
                 VStack(spacing: 0) {
-                     TimelineView(.everyMinute) { context in
-                         let _ = context.date // Force view update on timeline changes
-                         let active = checklists.filter { !$0.isDone }
-                         let filteredActive = active.filter {
-                             guard let filterTagID else { return true }
-                             return $0.tags.contains(where: { $0.id == filterTagID })
-                         }
-                         let starredFiltered = showOnlyStarred ? filteredActive.filter { $0.isStarred } : filteredActive
-                         let sortedActive = sort(starredFiltered)
-                         
-                         if sortedActive.isEmpty {
-                             emptyState
-                                 .padding(.top, 40)
-                         } else {
-                             checklistList(active: sortedActive)
-                                 .padding(.top)
-                         }
+                     let active = checklists.filter { !$0.isDeleted && !$0.isDone }
+                     let filteredActive = active.filter {
+                         guard !$0.isDeleted else { return false }
+                         guard let filterTagID else { return true }
+                         return $0.tags.contains(where: { $0.id == filterTagID })
+                     }
+                     let starredFiltered = showOnlyStarred ? filteredActive.filter { $0.isStarred } : filteredActive
+                     let sortedActive = sort(starredFiltered)
+                     
+                     if sortedActive.isEmpty {
+                         emptyState
+                             .padding(.top, 40)
+                     } else {
+                         checklistList(active: sortedActive)
+                             .padding(.top)
                      }
                 }
+
                 .padding(.horizontal)
                 .padding(.bottom, 80)
                 
@@ -1117,11 +1116,12 @@ struct ChecklistRow: View {
     }
 
     private var completedCount: Int {
-        checklist.items.filter { $0.isDone }.count
+        guard !checklist.isDeleted else { return 0 }
+        return checklist.items.filter { $0.isDone }.count
     }
 
     private var progress: Double {
-        guard !checklist.items.isEmpty else { return 0 }
+        guard !checklist.isDeleted, !checklist.items.isEmpty else { return 0 }
         return Double(completedCount) / Double(checklist.items.count)
     }
     

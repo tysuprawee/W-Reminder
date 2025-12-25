@@ -229,6 +229,13 @@ struct MilestoneDetailView: View {
             }
             .presentationDetents([.height(300)])
         }
+        .onDisappear {
+            // Flush any pending debounce
+            if debouncedSaveTask != nil {
+                debouncedSaveTask?.cancel()
+                saveChanges()
+            }
+        }
     }
     
     // MARK: - Subviews
@@ -298,7 +305,7 @@ struct MilestoneDetailView: View {
     
     private var bottomBar: some View {
          HStack {
-             if checklist.isDone {
+             if checklist.isDone || isConfettiActive {
                  Button {
                       completeMilestone(false)
                  } label: {
@@ -446,6 +453,10 @@ struct MilestoneDetailView: View {
         
         // 3. Debounced Save (Wait 1s of inactivity before hitting disk/sync)
         debouncedSaveTask?.cancel()
+        
+        // Critical: Update timestamp so SyncManager knows to push effective changes
+        checklist.updatedAt = Date()
+
         debouncedSaveTask = Task {
             try? await Task.sleep(nanoseconds: 1_000_000_000) // 1s
             
@@ -470,16 +481,8 @@ struct MilestoneDetailView: View {
              
              // Haptics
              HapticManager.shared.play(.success)
-                          
-             // 2. Update Model IMMEDIATELY to prevent data loss on quick navigation
-             checklist.isDone = true
-             checklist.completedAt = Date()
-             checklist.updatedAt = Date()
              
-             // Cancel Notifications
-             NotificationManager.shared.cancelNotification(for: checklist)
-             
-             // XP & Streak
+             // XP & Streak (Award immediately for gratification)
              let totalXP = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
              LevelManager.shared.addExp(totalXP)
              StreakManager.shared.incrementStreak()
@@ -487,14 +490,24 @@ struct MilestoneDetailView: View {
                  LevelManager.shared.incrementTaskCount(by: checklist.items.count)
              }
              
-             // Persist & Sync Immediately
-             try? modelContext.save()
-             WidgetCenter.shared.reloadAllTimelines()
-             Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
-             
-             // 3. Delayed Dismissal & Recurrence
+             // 2. Delayed Persistence & Dismissal
+             // We delay setting checklist.isDone to prevent the parent view (MilestoneView)
+             // from removing this item from its list & destroying this view before the animation completes.
              DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
-                 // Dismiss FIRST to avoid UI glitching where user sees the reset/new state
+                 // Now we update the model
+                 checklist.isDone = true
+                 checklist.completedAt = Date()
+                 checklist.updatedAt = Date()
+                 
+                 // Cancel Notifications
+                 NotificationManager.shared.cancelNotification(for: checklist)
+                 
+                 // Persist & Sync
+                 try? modelContext.save()
+                 WidgetCenter.shared.reloadAllTimelines()
+                 Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+                 
+                 // Dismiss
                  dismiss()
                  
                  // Handle Recurrence (Spawn Next Milestone) after dismissal
@@ -509,6 +522,7 @@ struct MilestoneDetailView: View {
                  }
              }
         } else {
+             // Undoing completion - Safe to do immediately as it ADDS to the parent list, not removes.
                checklist.isDone = false
                checklist.completedAt = nil
                checklist.updatedAt = Date()

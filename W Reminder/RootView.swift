@@ -103,7 +103,9 @@ struct RootView: View {
             }
             
             if syncManager.isSyncing {
-                SyncLoadingView()
+                SyncLoadingView(message: "Syncing...")
+            } else if authManager.isLoading {
+                SyncLoadingView(message: "Loading...")
             }
             
             GamificationOverlay()
@@ -172,6 +174,8 @@ struct RootView: View {
 
 // MARK: - Sync Loading View
 struct SyncLoadingView: View {
+    var message: String = "Syncing..."
+    
     var body: some View {
         ZStack {
             Color.black.opacity(0.3)
@@ -182,7 +186,7 @@ struct SyncLoadingView: View {
                     .controlSize(.large)
                     .tint(.white)
                 
-                Text("Syncing...")
+                Text(message)
                     .font(.headline)
                     .foregroundStyle(.white)
             }

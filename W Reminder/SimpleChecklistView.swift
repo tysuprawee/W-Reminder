@@ -169,23 +169,21 @@ struct SimpleChecklistView: View {
 
                     // Main List with Live Timer
                     VStack(spacing: 0) {
-                        TimelineView(.everyMinute) { context in
-                            let _ = context.date // Force view update on timeline changes
-                            let active = checklists.filter { !$0.isDone || pendingCompletionIDs.contains($0.id) }
-                            let filteredActive = active.filter {
-                                guard let filterTagID else { return true }
-                                return $0.tags.contains(where: { $0.id == filterTagID })
-                            }
-                            let starredFiltered = showOnlyStarred ? filteredActive.filter { $0.isStarred } : filteredActive
-                            let sortedActive = sort(starredFiltered)
-                            
-                            if sortedActive.isEmpty {
-                                emptyState
-                                    .padding(.top, 40)
-                            } else {
-                                list(active: sortedActive)
-                                    .padding(.top)
-                            }
+                        let active = checklists.filter { !$0.isDeleted && (!$0.isDone || pendingCompletionIDs.contains($0.id)) }
+                        let filteredActive = active.filter {
+                            guard !$0.isDeleted else { return false } // Safety check
+                            guard let filterTagID else { return true }
+                            return $0.tags.contains(where: { $0.id == filterTagID })
+                        }
+                        let starredFiltered = showOnlyStarred ? filteredActive.filter { $0.isStarred } : filteredActive
+                        let sortedActive = sort(starredFiltered)
+                        
+                        if sortedActive.isEmpty {
+                            emptyState
+                                .padding(.top, 40)
+                        } else {
+                            list(active: sortedActive)
+                                .padding(.top)
                         }
                     }
                     .padding(.horizontal)
@@ -404,7 +402,6 @@ struct SimpleChecklistView: View {
                     }
                 ).listRowSeparator(.hidden)
                 .listRowBackground(Color.clear)
-                .transition(.opacity.combined(with: .move(edge: .trailing)))
                 .swipeActions(edge: .leading, allowsFullSwipe: true) {
                     Button {
                         withAnimation {
@@ -453,57 +450,58 @@ struct SimpleChecklistView: View {
         await MainActor.run {
             var tasksCompleted = 0
             
-            for id in idsToCommit {
-                if let checklist = checklists.first(where: { $0.id == id }) {
-                    // Safety check if already done
-                    if !checklist.isDone {
-                        checklist.isDone = true
-                        checklist.completedAt = Date()
-                        checklist.updatedAt = Date()
-
-                        
-                        // Cancel Notifications
-                        NotificationManager.shared.cancelNotification(for: checklist)
-                        
-                        tasksCompleted += 1
-                        
-                        // Recurrence logic here
-                        if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
-                             if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
-                                 let newItem = SimpleChecklist(
-                                     title: checklist.title,
-                                     notes: checklist.notes,
-                                     dueDate: nextDate,
-                                     remind: checklist.remind,
-                                     isDone: false,
-                                     tags: checklist.tags,
-                                     isStarred: checklist.isStarred,
-                                     userOrder: checklist.userOrder,
-                                     recurrenceRule: rule
-                                 )
-                                 modelContext.insert(newItem)
+            // 1. Update State within Animation for smooth "Slide Up"
+            withAnimation(.default) {
+                for id in idsToCommit {
+                    if let checklist = checklists.first(where: { $0.id == id }) {
+                        if !checklist.isDone {
+                            checklist.isDone = true
+                            checklist.completedAt = Date()
+                            checklist.updatedAt = Date()
+                            
+                            // Cancel Notifications
+                            NotificationManager.shared.cancelNotification(for: checklist)
+                            
+                            tasksCompleted += 1
+                            
+                            // Recurrence
+                             if let rule = checklist.recurrenceRule, let currentDue = checklist.dueDate {
+                                  if let nextDate = RecurrenceHelper.calculateNextDueDate(from: currentDue, rule: rule) {
+                                      let newItem = SimpleChecklist(
+                                          title: checklist.title,
+                                          notes: checklist.notes,
+                                          dueDate: nextDate,
+                                          remind: checklist.remind,
+                                          isDone: false,
+                                          tags: checklist.tags,
+                                          isStarred: checklist.isStarred,
+                                          userOrder: checklist.userOrder,
+                                          recurrenceRule: rule
+                                      )
+                                      modelContext.insert(newItem)
+                                  }
                              }
                         }
                     }
                 }
+                
+                // Clear IDs triggers the removal from the "Active" filter
+                pendingCompletionIDs.removeAll()
             }
             
-            // Grant XP for Batch (Manual LevelManager call if StreakManager doesn't handle XP)
-            // Assuming StreakManager handles XP on increment?
-            // Let's just increment Streak for each.
+            // 2. Grant XP
             for _ in 0..<tasksCompleted {
                 StreakManager.shared.incrementStreak()
             }
             
-            // Save & Sync ONCE
+            // 3. Save & Sync (After animation triggers)
+            // We delay save slightly to let animation start? No, save immediately is fine for data, 
+            // but we want the View to animate the state change first.
+            // SwiftData auto-saves on run loop often, but explicit save is good.
+            
             try? modelContext.save()
             WidgetCenter.shared.reloadAllTimelines()
             Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
-            
-            // Clear IDs
-            withAnimation {
-                pendingCompletionIDs.removeAll()
-            }
         }
     }
 
@@ -514,6 +512,10 @@ struct SimpleChecklistView: View {
         for (index, item) in sortedItems.enumerated() {
             item.userOrder = index
         }
+        
+        // Save & Sync Reorder
+        try? modelContext.save()
+        Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
     }
 
     private var header: some View {
