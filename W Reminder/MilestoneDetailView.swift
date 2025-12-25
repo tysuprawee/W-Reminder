@@ -471,54 +471,55 @@ struct MilestoneDetailView: View {
              // Haptics
              HapticManager.shared.play(.success)
                           
-              // 2. Bonus XP (Optimistic) + Aggregated Subtask XP
-              let totalXP = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
-              LevelManager.shared.addExp(totalXP)
-              
-              StreakManager.shared.incrementStreak()
-             // Count subtasks effectively as completed tasks for achievements
+             // 2. Update Model IMMEDIATELY to prevent data loss on quick navigation
+             checklist.isDone = true
+             checklist.completedAt = Date()
+             checklist.updatedAt = Date()
+             
+             // Cancel Notifications
+             NotificationManager.shared.cancelNotification(for: checklist)
+             
+             // XP & Streak
+             let totalXP = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
+             LevelManager.shared.addExp(totalXP)
+             StreakManager.shared.incrementStreak()
              if !checklist.items.isEmpty {
                  LevelManager.shared.incrementTaskCount(by: checklist.items.count)
              }
              
-             // 3. Delayed Dismissal THEN Persistence
+             // Persist & Sync Immediately
+             try? modelContext.save()
+             WidgetCenter.shared.reloadAllTimelines()
+             Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+             
+             // 3. Delayed Dismissal & Recurrence
              DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) {
                  // Dismiss FIRST to avoid UI glitching where user sees the reset/new state
                  dismiss()
                  
-                 // Perform data operations after view pop animation
+                 // Handle Recurrence (Spawn Next Milestone) after dismissal
                  DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                     // Handle Recurrence (Spawn Next Milestone)
                      if let rule = checklist.recurrenceRule, !rule.isEmpty {
                          handleRecurrence(rule: rule)
+                         // Save again if Recurrence generated new items/modified rule
+                         try? modelContext.save()
+                         WidgetCenter.shared.reloadAllTimelines()
+                         Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
                      }
-                     
-                     // NOW update the model
-                     checklist.isDone = true
-                     checklist.completedAt = Date()
-                     checklist.updatedAt = Date()
-
-                     
-                     // Cancel Notifications for this item since it's done
-                     NotificationManager.shared.cancelNotification(for: checklist)
-                     
-                     try? modelContext.save()
-                     WidgetCenter.shared.reloadAllTimelines()
-                     Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
                  }
              }
         } else {
-              checklist.isDone = false
-              checklist.completedAt = nil
-              checklist.updatedAt = Date()
+               checklist.isDone = false
+               checklist.completedAt = nil
+               checklist.updatedAt = Date()
+               
+               // Deduct EVERYTHING (Bonus + Subtasks)
+               let totalXP = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
+               LevelManager.shared.addExp(-totalXP)
               
-              // Deduct EVERYTHING (Bonus + Subtasks)
-              let totalXP = xpCompletionBonus + (checklist.items.count * xpPerSubTask)
-              LevelManager.shared.addExp(-totalXP)
-             
-             try? modelContext.save()
-             WidgetCenter.shared.reloadAllTimelines()
-             Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
+              try? modelContext.save()
+              WidgetCenter.shared.reloadAllTimelines()
+              Task { await SyncManager.shared.sync(container: modelContext.container, silent: true) }
         }
     }
     

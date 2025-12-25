@@ -454,21 +454,28 @@ final class SyncManager {
                     listToUpdate.notes = cloudList.notes
                     listToUpdate.dueDate = cloudList.dueDate
                     
-                    // Logic: If user completed it locally, but cloud is newer and says not completed...
-                    // Sticky Done might still apply if we want to be safe, but strictly timestamp should win.
-                    // However, for "Done" specifically, users hate it unchecking.
-                    // Let's stick to timestamp win for now.
-                    listToUpdate.isDone = cloudList.isDone
-                } else {
-                    // Local is newer. Keep Local.
-                    // EXCEPT: If we want to merge IsDone specially?
-                    // Previous sticky logic:
+                    // ROBUST SYNC: Sticky Done Logic
+                    // If Local is Done, and Cloud is Not Done, we must be careful.
+                    // Only overwrite to "Not Done" if the Cloud update is SIGNIFICANTLY newer than the Local Completion.
+                    // This handles the race condition where we mark done -> sync starts -> cloud returns old state (not done) -> we overwrite.
+                    
+                    var shouldOverwriteDone = true
                     if listToUpdate.isDone && !cloudList.isDone {
-                         // Keep Local
-                    } else if cloudUpdated > localUpdated {
-                         // Only overwrite if cloud is genuinely newer
-                         // (Already handled in if block above)
+                        if let localCompletedAt = listToUpdate.completedAt {
+                            // If cloud was updated AFTER we completed it (by a safe margin, e.g. 5s to account for clock skew/network), then it's a valid "Uncheck".
+                            // If cloud update is older or very close, assume our "Done" is the latest truth.
+                            if cloudUpdated < localCompletedAt.addingTimeInterval(5) {
+                                shouldOverwriteDone = false
+                            }
+                        }
                     }
+                    
+                    if shouldOverwriteDone {
+                        listToUpdate.isDone = cloudList.isDone
+                        listToUpdate.completedAt = cloudList.completedAt
+                    }
+                } else {
+                     // Local is newer. Keep Local.
                 }
                 
                 // Always sync these for now or apply timestamp logic?
@@ -478,7 +485,7 @@ final class SyncManager {
                     listToUpdate.isStarred = cloudList.isStarred
                     listToUpdate.userOrder = cloudList.userOrder
                     listToUpdate.recurrenceRule = cloudList.recurrenceRule
-                    listToUpdate.completedAt = cloudList.completedAt
+                    // listToUpdate.completedAt = cloudList.completedAt // Handled in Sticky Done Logic above
                     listToUpdate.updatedAt = cloudUpdated // Sync the timestamp!
                     
                     // Relationships (Tags) - moved inside timestamp check to prevent overwriting local edits
@@ -555,14 +562,24 @@ final class SyncManager {
                     listToUpdate.isStarred = cloudList.isStarred
                     listToUpdate.userOrder = cloudList.userOrder
                     listToUpdate.recurrenceRule = cloudList.recurrenceRule
-                    listToUpdate.completedAt = cloudList.completedAt
-                    listToUpdate.isDone = cloudList.isDone
+                    
+                    // ROBUST SYNC: Sticky Done Logic (Milestones)
+                    var shouldOverwriteDone = true
+                    if listToUpdate.isDone && !cloudList.isDone {
+                        if let localCompletedAt = listToUpdate.completedAt {
+                            // If cloud was updated AFTER we completed it (by a safe margin, e.g. 5s), then it's a valid "Uncheck".
+                            if cloudUpdated < localCompletedAt.addingTimeInterval(5) {
+                                shouldOverwriteDone = false
+                            }
+                        }
+                    }
+                    
+                    if shouldOverwriteDone {
+                        listToUpdate.isDone = cloudList.isDone
+                        listToUpdate.completedAt = cloudList.completedAt
+                    }
+                    
                     listToUpdate.updatedAt = cloudUpdated
-                }
-                
-                // Sticky Done logic (optional backup)
-                if listToUpdate.isDone && !cloudList.isDone && localUpdated >= cloudUpdated {
-                    // Keep Local
                 }
                 
                 listToUpdate.createdAt = cloudList.createdAt
