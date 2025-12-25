@@ -1057,7 +1057,7 @@ struct SimpleChecklistRow: View {
             .buttonStyle(.plain)
         }
         .accessibilityIdentifier("checklistRow_\(checklist.title)")
-        .padding()
+        .padding(16)
         .background(
             RoundedRectangle(cornerRadius: 12, style: .continuous)
                 .fill(
@@ -1065,12 +1065,14 @@ struct SimpleChecklistRow: View {
                         ? theme.accent.opacity(0.12)
                         : (theme.isDark ? Color.white.opacity(0.05) : theme.background)
                 )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .stroke(checklist.isStarred ? theme.accent : Color.clear, lineWidth: checklist.isStarred ? 2.5 : 0)
-                )
         )
+        .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 12, style: .continuous))
+        .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(color: checklist.isStarred ? theme.accent.opacity(0.25) : .black.opacity(0.05), radius: checklist.isStarred ? 8 : 5, x: 0, y: 2)
+        .overlay(
+             RoundedRectangle(cornerRadius: 12, style: .continuous)
+                 .stroke(checklist.isStarred ? theme.accent : Color.clear, lineWidth: 2)
+        )
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: checklist.isStarred)
         .transition(.opacity.combined(with: .move(edge: .trailing)))
         .animation(.easeInOut, value: checklist.isDone)

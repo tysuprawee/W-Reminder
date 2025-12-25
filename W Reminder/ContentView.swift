@@ -306,16 +306,16 @@ struct MilestoneView: View {
             checklist = original
             checklist.title = title
             checklist.notes = notes
+            checklist.dueDate = dueDate
             checklist.remind = remind
             checklist.isDone = isDone
             
             if isDone {
                 StreakManager.shared.incrementStreak()
             }
-            checklist.remind = remind
-            checklist.isDone = isDone
             checklist.tags = tags
             checklist.recurrenceRule = recurrenceRule
+            checklist.updatedAt = Date() // Signal SyncManager that a change occurred
         } else {
             checklist = Checklist(
                 title: title,
@@ -1078,17 +1078,16 @@ struct ChecklistRow: View {
                 if let dueDate = checklist.dueDate {
                     HStack(spacing: 4) {
                         Image(systemName: "clock")
-                            .font(.caption)
                         Text(timeRemaining(until: dueDate))
-                            .font(.caption)
-                            .accessibilityIdentifier("timeRemainingLabel_\(checklist.title)")
                     }
-                    .foregroundStyle(deadlineColor(for: dueDate))
+                    .font(.caption2.bold())
+                    .foregroundStyle(timeColor(for: dueDate))
                 }
             }
         }
-        .padding()
+        .padding(16)
         .background(cardBackground)
+        .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 12, style: .continuous))
         .shadow(color: checklist.isStarred ? theme.accent.opacity(0.25) : .black.opacity(0.05), radius: checklist.isStarred ? 8 : 5, x: 0, y: 2)
         .animation(.spring(response: 0.3, dampingFraction: 0.7), value: checklist.isStarred)
         .contextMenu {
@@ -1097,15 +1096,18 @@ struct ChecklistRow: View {
             } label: {
                 Label("Edit", systemImage: "pencil")
             }
+            
+            Button(role: .destructive) {
+                // Delete handled by parent
+            } label: {
+                Label("Delete", systemImage: "trash")
+            }
         }
     }
-    
-    private func deadlineColor(for dueDate: Date) -> Color {
-        let now = Date()
-        let timeRemaining = dueDate.timeIntervalSince(now)
-        
-        if timeRemaining < 0 {
-            // Past due
+
+    private func timeColor(for date: Date) -> Color {
+        let timeRemaining = date.timeIntervalSinceNow
+        if timeRemaining < 0 { // Overdue
             return .red
         } else if timeRemaining < 86400 { // Less than 24 hours
             return .yellow

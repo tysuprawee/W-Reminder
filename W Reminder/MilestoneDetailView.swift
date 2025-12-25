@@ -676,7 +676,7 @@ struct MilestoneTaskRow: View {
                     .stroke(theme.primary.opacity(0.05), lineWidth: 1)
             )
             .shadow(color: .black.opacity(0.03), radius: 2, y: 1)
-            .contentShape(Rectangle())
+            .contentShape(.dragPreview, RoundedRectangle(cornerRadius: 12))
             .contextMenu {
                  Button {
                      onSetDate()
