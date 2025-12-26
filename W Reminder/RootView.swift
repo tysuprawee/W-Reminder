@@ -154,14 +154,17 @@ struct RootView: View {
                 }
         }
         .tint(theme.accent)
+        // Modern Tab Bar Theming (iOS 16+) produces reliable live updates
+        .toolbarBackground(theme.background, for: .tabBar)
+        .toolbarBackground(.visible, for: .tabBar)
         .onAppear {
             refreshNotificationStatus()
             // Check unlocks on app launch
             ThemeManager.shared.checkUnlocks()
-            configureTabBar(theme: theme)
+            // configureTabBar(theme: theme) // Legacy method
         }
         .onChange(of: theme) { _, newTheme in
-            configureTabBar(theme: newTheme)
+            // configureTabBar(theme: newTheme) // Legacy method
         }
 
         .onChange(of: scenePhase) { oldPhase, newPhase in
