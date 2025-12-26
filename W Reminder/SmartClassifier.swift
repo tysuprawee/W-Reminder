@@ -21,7 +21,13 @@ struct SmartClassifier {
         // 1. Extract the "Core" Noun/Verb from the text to vectorize
         // (e.g., "Buy Milk" -> "Milk", "Call Mom" -> "Call")
         let keywords = extractKeywords(from: text)
-        guard !keywords.isEmpty else { return "Personal" } // Default fallback
+        guard !keywords.isEmpty else { return "Personal" }
+        
+        // Manual Keyword Override (Fast Path)
+        // Some words are so specific they should bypass embedding lookup
+        if let manual = checkManualOverrides(keywords) {
+            return manual
+        }
         
         
         var bestCandidate: String?
@@ -92,5 +98,16 @@ struct SmartClassifier {
         // Always return the best category found.
         // If nothing matches well (extremely unlikely), default to "Personal"
         return bestCat ?? "Personal"
+    }
+    private static func checkManualOverrides(_ keywords: [String]) -> String? {
+        for word in keywords {
+            let lower = word.lowercased()
+            if ["gym", "workout", "run", "fitness", "yoga"].contains(lower) { return "Health" }
+            if ["bill", "rent", "fee", "tax", "invoice", "bank"].contains(lower) { return "Finance" }
+            if ["mom", "dad", "sister", "brother", "wife", "husband"].contains(lower) { return "Family" }
+            if ["study", "homework", "exam", "quiz", "class"].contains(lower) { return "Study" }
+            if ["groceries", "milk", "bread", "eggs"].contains(lower) { return "Shopping" }
+        }
+        return nil
     }
 }

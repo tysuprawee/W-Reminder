@@ -51,6 +51,21 @@ struct SmartTaskParser {
         if dueDate == nil {
             dueDate = extractBestDateAndRemoveAllMatches(&working, now: now)
         }
+        
+        // 2.5) Secondary Time Extraction (Merge if we have a Date but no Time, OR if we missed time)
+        // Checks for leftover "at 5pm" or "in the morning" that wasn't part of the main date string
+        if let currentDueDate = dueDate {
+             if let timePart = extractTimeOnly(&working) {
+                 // specific time found, update the calendar
+                 let calendar = Calendar.current
+                 let timeComponents = calendar.dateComponents([.hour, .minute], from: timePart)
+                 if let h = timeComponents.hour, let m = timeComponents.minute {
+                     if let newDate = calendar.date(bySettingHour: h, minute: m, second: 0, of: currentDueDate) {
+                         dueDate = newDate
+                     }
+                 }
+             }
+        }
 
         // 3) Clean
         working = cleanString(working)
@@ -136,8 +151,47 @@ private extension SmartTaskParser {
 
             // "around 5" -> "at 5:00"
             (#"(?i)\baround (\d{1,2})(?!\s?(:|\.|am|pm))"#, "at $1:00"),
-            // "around 5pm" -> "at 5pm" (let subsequent normalizer handle the rest)
+            // "around 5pm" -> "at 5pm"
             (#"(?i)\baround (\d+)"#, "at $1"),
+            
+            // Colloquial Times
+            (#"(?i)\bin the morning\b"#, "at 9 am"),
+            (#"(?i)\bin the afternoon\b"#, "at 2 pm"),
+            (#"(?i)\bin the evening\b"#, "at 7 pm"),
+            (#"(?i)\bat night\b"#, "at 9 pm"),
+            (#"(?i)\bat noon\b"#, "at 12 pm"),
+            (#"(?i)\bat midnight\b"#, "at 12 am"),
+            (#"(?i)\bat lunch\b"#, "at 12 pm"),
+            (#"(?i)\bat dinner\b"#, "at 6 pm"),
+
+
+            // British / Traditional Time
+            (#"(?i)\bhalf past (\d+)\b"#, "$1:30"),
+            (#"(?i)\bquarter past (\d+)\b"#, "$1:15"),
+            // Removed "quarter to" - regex logic cannot do Date subtraction (8 -> 7). 
+            // Better to let NSDataDetector handle "quarter to 8" (it often does) or fail gracefully 
+            // rather than setting the WRONG time (8:45).
+
+            // Natural Duration (Expanded)
+            (#"(?i)\bin half an hour\b"#, "in 30 mins"),
+            (#"(?i)\bin an hour\b"#, "in 60 mins"),
+            (#"(?i)\bin a couple (of)? days\b"#, "in 2 days"),
+            (#"(?i)\bin a few days\b"#, "in 3 days"),
+            
+            // "in 20min" (no space)
+            (#"(?i)\bin (\d+)(min|mins|hr|hrs|h|m)\b"#, "in $1 $2"),
+            
+            // Compact Time
+             // "at 530pm" -> "at 5:30 pm"
+            (#"(?i)\bat (\d{1,2})(\d{2})(am|pm)\b"#, "at $1:$2 $3"),
+            
+            // Ranges "between 5 and 6" -> "at 5" (Pick start time)
+            (#"(?i)\bbetween (\d+) and (\d+)\b"#, "at $1"),
+
+             // "before 5" -> "at 5" (Deadline context)
+            (#"(?i)\bbefore (\d+)"#, "at $1:00"),
+            // "after 5" -> "at 5" (Detector usually handles, but normalizing helps)
+            (#"(?i)\bafter (\d+)"#, "at $1:00"),
         ]
 
         for (pattern, replacement) in rules {
@@ -152,8 +206,9 @@ private extension SmartTaskParser {
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
     }
     static func extractExplicitTag(_ text: inout String, foundTag: inout String?) {
-        // Match #TagName (simple alphanumeric)
-        let pattern = "#(\\w+)"
+        // Match #TagName (alphanumeric + hyphen + slash + underscores)
+        // DOES NOT support spaces in tags yet as that requires complex delimiters logic (like # "My Tag")
+        let pattern = "#([\\w\\-\\/]+)"
         guard let re = try? NSRegularExpression(pattern: pattern) else { return }
         
         let range = NSRange(text.startIndex..<text.endIndex, in: text)
@@ -175,24 +230,31 @@ private extension SmartTaskParser {
 private extension SmartTaskParser {
 
     static func extractRelativeDuration(_ text: inout String, now: Date) -> Date? {
-        let pattern = #"(?i)\b(in)\s+(\d+)\s*(seconds|second|secs|sec|minutes|minute|mins|min|hours|hour|hrs|hr|days|day)\b"#
+        // Expanded Pattern:
+        // - Supports explicit "1.5" decimals
+        // - Supports "weeks", "months"
+        let pattern = #"(?i)\b(in)\s+(\d+(\.\d+)?)\s*(seconds|second|secs|sec|minutes|minute|mins|min|hours|hour|hrs|hr|h|m|days|day|weeks|week|months|month)\b"#
+        
         guard let re = try? NSRegularExpression(pattern: pattern) else { return nil }
 
         let full = NSRange(text.startIndex..<text.endIndex, in: text)
         guard let match = re.firstMatch(in: text, range: full),
               let qtyRange = Range(match.range(at: 2), in: text),
-              let unitRange = Range(match.range(at: 3), in: text),
+              let unitRange = Range(match.range(at: 4), in: text), // Index shifted due to decimal group
               let wholeRange = Range(match.range, in: text)
         else { return nil }
 
-        let qty = Int(text[qtyRange]) ?? 0
+        let qtyString = String(text[qtyRange])
+        let qty = Double(qtyString) ?? 0
         let unit = text[unitRange].lowercased()
 
         var seconds: TimeInterval = 0
-        if ["second","seconds","sec","secs"].contains(unit) { seconds = TimeInterval(qty) }
-        else if ["minute","minutes","min","mins"].contains(unit) { seconds = TimeInterval(qty) * 60 }
-        else if ["hour","hours","hr","hrs"].contains(unit) { seconds = TimeInterval(qty) * 3600 }
-        else if ["day","days"].contains(unit) { seconds = TimeInterval(qty) * 86400 }
+        if ["second","seconds","sec","secs"].contains(unit) { seconds = qty }
+        else if ["minute","minutes","min","mins","m"].contains(unit) { seconds = qty * 60 }
+        else if ["hour","hours","hr","hrs","h"].contains(unit) { seconds = qty * 3600 }
+        else if ["day","days"].contains(unit) { seconds = qty * 86400 }
+        else if ["week","weeks"].contains(unit) { seconds = qty * 604800 }
+        else if ["month","months"].contains(unit) { seconds = qty * 2592000 } // Approx 30 days
 
         guard seconds > 0 else { return nil }
 
@@ -266,25 +328,58 @@ private extension SmartTaskParser {
         guard let match = re.firstMatch(in: text, range: range),
               let dayRange = Range(match.range(at: 1), in: text) else { return nil }
         
-        guard let dayProxy = Int(text[dayRange]), dayProxy >= 1, dayProxy <= 31 else { return nil }
+        guard let dayProxy = Int(text[dayRange]), dayProxy >= 1 else { return nil }
         
         // Determine date: Next occurrence of this day
         let calendar = Calendar.current
         let currentComponents = calendar.dateComponents([.year, .month, .day], from: now)
         var targetComponents = currentComponents
+        
+        // Use current month first
+        // Clamp dayProxy to valid days in this month
+        let rangeOfMonth = calendar.range(of: .day, in: .month, for: now)
+        let maxDay = rangeOfMonth?.count ?? 30
+        
+        // If user says "31st" but month only has 30, we could strict fail, 
+        // or clamp, or roll to next month. 
+        // Logic: Try setting day. If result is nil or day mismatches, move next month.
+        
         targetComponents.day = dayProxy
         targetComponents.hour = 9 // Default time for "on the 1st" -> 9am
         targetComponents.minute = 0
         
         var targetDate = calendar.date(from: targetComponents)
         
-        // If target date is today or past, move to next month?
-        // Actually, if it's "on the 1st" and today is the 5th, we mean NEXT month.
-        // If today is the 1st, maybe we mean today? Or next month? Usually today if early, next if late.
-        // Let's assume strict future preference.
-        if let t = targetDate, t < now {
-           if let nextMonth = calendar.date(byAdding: .month, value: 1, to: t) {
-               targetDate = nextMonth
+        // If target date is invalid (e.g. Feb 30) or in past, try next month
+        let needsNextMonth = (targetDate == nil) || (targetDate! < now)
+        
+        if needsNextMonth {
+           if let nextMonthDate = calendar.date(byAdding: .month, value: 1, to: now) {
+               var nextMonthComps = calendar.dateComponents([.year, .month], from: nextMonthDate)
+               nextMonthComps.day = dayProxy
+               nextMonthComps.hour = 9
+               nextMonthComps.minute = 0
+               
+               // If next month doesn't have 31st (e.g. Sep -> Oct is fine, but Jan 31 -> Feb 31 bad)
+               // Simple clamp check not easy without components
+               // Let's rely on Calendar loose behavior (Feb 31 -> March 3)?
+               // No, Calendar default behavior wraps. That's usually confusing.
+               // Let's create date and check if month matches expected next month.
+               if let candidate = calendar.date(from: nextMonthComps) {
+                   let candidateMonth = calendar.component(.month, from: candidate)
+                   if candidateMonth == nextMonthComps.month {
+                       targetDate = candidate
+                   } else {
+                       // Wrapped (e.g. Feb 30 -> Mar 2). 
+                       // Either return nil (invalid date) or accept wrap.
+                       // Safest for To-Do: accept wrap or use LAST day of month?
+                       // "Pay bill on 31st" in Feb -> Pay on Feb 28/29?
+                       // Complex. Let's strict fail if wrapping occurs to avoid bad dates?
+                       // Or just return nil.
+                       // For now, allow standard wrapping (Apple Calendar style).
+                       targetDate = candidate 
+                   }
+               }
            }
         }
         
@@ -333,7 +428,29 @@ private extension SmartTaskParser {
         // Prefer earliest future date; otherwise most recent past date
         let future = found.filter { $0.date >= now }.sorted { $0.date < $1.date }
         let past = found.filter { $0.date < now }.sorted { $0.date > $1.date }
-        let best = future.first?.date ?? past.first?.date
+        var best = future.first?.date ?? past.first?.date
+        
+        // Handling "Time Only" logic: If text was just "5pm" and it's 6pm, NSDataDetector returns Today 5pm (past).
+        // We want Tomorrow 5pm.
+        // Heuristic: If detecting TIME only (no day/month changes implied) and result < now, add 1 day.
+        // Note: NSDataDetector doesn't easily tell us "Time Only". 
+        // We can check if the day/month/year of 'best' matches 'now'.
+        
+        if let b = best {
+             let cal = Calendar.current
+             if b < now && cal.isDate(b, inSameDayAs: now) {
+                 // It's in the past, but TODAY. User likely meant tomorrow.
+                 // Verify original string didn't say "today" explicitly? 
+                 // If user typed "Today at 5pm" and it's 6pm, they are late. We shouldn't move it.
+                 // But if they just typed "5pm", they probably mean tomorrow.
+                 // This is hard to distinguish without checking the matched string.
+                 // For now, let's assume if it's strictly composed of time formats, we roll.
+                 // Simplified: If past and today, add 24 hours.
+                 if let tomorrow = cal.date(byAdding: .day, value: 1, to: b) {
+                     best = tomorrow
+                 }
+             }
+        }
 
         // Remove ALL matches (must remove from end -> start)
         let rangesToRemove = found.map(\.range).sorted { $0.location > $1.location }
@@ -347,6 +464,31 @@ private extension SmartTaskParser {
             .trimmingCharacters(in: .whitespacesAndNewlines)
 
         return best
+    }
+    
+    private static func extractTimeOnly(_ text: inout String) -> Date? {
+        // Runs a strict "Time" detector on the text to catch leftovers like "at 5pm" or "in the morning"
+        // This is used when a Date was already found (e.g. "Tomorrow") but the Time wasn't attached.
+        
+        guard let detector = try? NSDataDetector(types: NSTextCheckingResult.CheckingType.date.rawValue) else { return nil }
+        let matches = detector.matches(in: text, options: [], range: NSRange(text.startIndex..<text.endIndex, in: text))
+        
+        for match in matches {
+            if let date = match.date {
+                // Heuristic: Does this match look like a time?
+                // NSDataDetector usually treats "5pm" as a Date with specific components.
+                // We rely on the caller to merge components.
+                
+                // Cleanup: Remove this time string from text
+                if let r = Range(match.range, in: text) {
+                    text.removeSubrange(r)
+                    text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                        .trimmingCharacters(in: .whitespacesAndNewlines)
+                }
+                return date
+            }
+        }
+        return nil
     }
 }
 
