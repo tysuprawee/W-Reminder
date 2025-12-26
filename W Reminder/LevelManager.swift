@@ -92,9 +92,12 @@ final class LevelManager {
             currentLevel = calculatedLevel
             // Trigger Animation
             showLevelUpCelebration = true
-            ThemeManager.shared.checkUnlocks() // Check for theme unlocks
+            
+            // Wait for Level Up celebration to finish before showing Theme Unlock
+            // This prevents UI conflict/overlap
             DispatchQueue.main.asyncAfter(deadline: .now() + 4) {
                 self.showLevelUpCelebration = false
+                ThemeManager.shared.checkUnlocks() 
             }
             
             // Check Level-based achievements
@@ -143,6 +146,11 @@ final class LevelManager {
         
         checkLevelAchievements()
         checkTimeSensitiveAchievements()
+        
+        // Trigger generic unlock check (covers possible future task-based themes)
+        DispatchQueue.main.async {
+            ThemeManager.shared.checkUnlocks()
+        }
     }
     
     private func checkTimeSensitiveAchievements() {

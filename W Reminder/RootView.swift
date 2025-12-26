@@ -121,22 +121,7 @@ struct RootView: View {
                 .zIndex(200)
             }
             
-            if themeManager.showUnlockCelebration, let newTheme = themeManager.newlyUnlockedTheme {
-                ThemeUnlockCelebrationView(theme: newTheme) {
-                    // Dismiss
-                    withAnimation {
-                        themeManager.showUnlockCelebration = false
-                    }
-                } onApply: {
-                    // Apply
-                    withAnimation {
-                        selectedThemeId = newTheme.id
-                        themeManager.showUnlockCelebration = false
-                    }
-                }
-                .zIndex(300)
-                .transition(.opacity)
-            }
+
         }
     }
 
@@ -173,11 +158,22 @@ struct RootView: View {
             refreshNotificationStatus()
             // Check unlocks on app launch
             ThemeManager.shared.checkUnlocks()
+            configureTabBar(theme: theme)
         }
+        .onChange(of: theme) { _, newTheme in
+            configureTabBar(theme: newTheme)
+        }
+
         .onChange(of: scenePhase) { oldPhase, newPhase in
             if newPhase == .active {
                 refreshNotificationStatus()
                 ThemeManager.shared.checkUnlocks()
+            }
+        }
+        .sheet(isPresented: $themeManager.showUnlockCelebration) {
+            if let newTheme = themeManager.newlyUnlockedTheme {
+                ThemeUnlockSheet(theme: theme, newTheme: newTheme)
+                    .presentationDetents([.fraction(0.5)]) // Half screen sheet
             }
         }
     }
@@ -190,6 +186,27 @@ struct RootView: View {
         }
         
 
+    }
+
+    private func configureTabBar(theme: Theme) {
+        let appearance = UITabBarAppearance()
+        appearance.configureWithOpaqueBackground()
+        appearance.backgroundColor = UIColor(theme.background)
+        
+        // Active/Inactive Item Colors
+        let itemAppearance = UITabBarItemAppearance()
+        itemAppearance.normal.iconColor = UIColor(theme.secondary)
+        itemAppearance.normal.titleTextAttributes = [.foregroundColor: UIColor(theme.secondary)]
+        
+        itemAppearance.selected.iconColor = UIColor(theme.accent)
+        itemAppearance.selected.titleTextAttributes = [.foregroundColor: UIColor(theme.accent)]
+        
+        appearance.stackedLayoutAppearance = itemAppearance
+        appearance.inlineLayoutAppearance = itemAppearance
+        appearance.compactInlineLayoutAppearance = itemAppearance
+        
+        UITabBar.appearance().standardAppearance = appearance
+        UITabBar.appearance().scrollEdgeAppearance = appearance
     }
 }
 
@@ -296,6 +313,7 @@ struct SettingsView: View {
     @State private var showLoginSheet = false
     @State private var showRedeemSheet = false
     @AppStorage("isHapticsEnabled") private var isHapticsEnabled = true
+    @AppStorage("isTimeSensitiveNotificationsEnabled") private var isTimeSensitiveNotificationsEnabled = true
     @State private var showLogoutAlert = false
     @State private var hasCopiedCode = false
         
@@ -435,6 +453,16 @@ struct SettingsView: View {
                     }
                     .tint(theme.accent)
                     
+                    Toggle(isOn: $isTimeSensitiveNotificationsEnabled) {
+                        VStack(alignment: .leading) {
+                            Text("Long Notifications")
+                            Text("Persistent alerts that behave like an alarm.")
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
+                    }
+                    .tint(theme.accent)
+                    
                     // Silent Mode Info
                     HStack(alignment: .top, spacing: 12) {
                         Image(systemName: "bell.slash")
@@ -552,12 +580,7 @@ struct SettingsView: View {
                 RedeemInviteView(theme: theme)
                     .presentationDetents([.medium])
             }
-            .sheet(isPresented: $themeManager.showUnlockCelebration) {
-                if let newTheme = themeManager.newlyUnlockedTheme {
-                    ThemeUnlockSheet(theme: theme, newTheme: newTheme)
-                        .presentationDetents([.fraction(0.5)])
-                }
-            }
+
             .alert("Sync Failed", isPresented: $showLogoutAlert) {
                 Button("Force Sign Out", role: .destructive) {
                     Task { await performSignOut() }
@@ -589,7 +612,13 @@ struct SettingsView: View {
         
         LevelManager.shared.resetLocalData()
         StreakManager.shared.resetLocalData()
+        ThemeManager.shared.resetLocalData() // Reset Unlocks
         
+        // 3. Sign Out
+        await MainActor.run {
+            ThemeSelectionManager.shared.resetToDefault() // Reset Theme
+        }
+
         // 3. Sign Out
         await authManager.signOut()
         
@@ -758,12 +787,7 @@ struct RedeemInviteView: View {
         .padding()
         .padding()
         .presentationDetents([.medium])
-        .sheet(isPresented: $themeManager.showUnlockCelebration) {
-            if let newTheme = themeManager.newlyUnlockedTheme {
-                ThemeUnlockSheet(theme: theme, newTheme: newTheme)
-                    .presentationDetents([.fraction(0.5)])
-            }
-        }
+
     }
     
     func submit() {
@@ -778,9 +802,7 @@ struct RedeemInviteView: View {
             isSuccess = success
             
             if success {
-                DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) {
-                    dismiss()
-                }
+                // Do not auto-dismiss, let user see success or celebration
             }
         }
     }

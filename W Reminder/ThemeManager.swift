@@ -19,6 +19,10 @@ class ThemeManager: ObservableObject {
     
     private init() {}
     
+    func resetLocalData() {
+        UserDefaults.standard.removeObject(forKey: unlockedKey)
+    }
+    
     func checkUnlocks() {
         let previouslyUnlocked = UserDefaults.standard.stringArray(forKey: unlockedKey) ?? []
         var newUnlocked: [String] = previouslyUnlocked
@@ -31,7 +35,8 @@ class ThemeManager: ObservableObject {
             // Check if unlocked now
             if isUnlocked(theme) {
                 // New unlock!
-                if !foundNew {
+                // Skip celebration for Default Theme
+                if !foundNew && theme.id != Theme.default.id {
                     // Only show one at a time for simplicity
                     self.newlyUnlockedTheme = theme
                     self.showUnlockCelebration = true

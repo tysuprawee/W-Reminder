@@ -6,6 +6,8 @@ struct ThemeSelectionView: View {
     let currentTheme: Theme
     
     @State private var path = NavigationPath() // For navigation
+    @State private var showInvitePromo = false // Promo for Lavender Haze
+    @State private var showLoginSheet = false // Guest Check
 
     var body: some View {
         List {
@@ -16,8 +18,12 @@ struct ThemeSelectionView: View {
                     // 1. Selection Button Area (Leading)
                     Button {
                         if !isLocked {
-                            withAnimation {
-                                selectedThemeId = option.id
+                            if !AuthManager.shared.isAuthenticated {
+                                showLoginSheet = true
+                            } else {
+                                withAnimation {
+                                    selectedThemeId = option.id
+                                }
                             }
                         }
                     } label: {
@@ -85,7 +91,11 @@ struct ThemeSelectionView: View {
                         // STATUS ICON
                         Button {
                             if !isLocked {
-                                withAnimation { selectedThemeId = option.id }
+                                if !AuthManager.shared.isAuthenticated {
+                                    showLoginSheet = true
+                                } else {
+                                    withAnimation { selectedThemeId = option.id }
+                                }
                             }
                         } label: {
                             ZStack {
@@ -120,13 +130,38 @@ struct ThemeSelectionView: View {
                     : currentTheme.background.opacity(isDarkThemeRow(option) ? 0.3 : 0.6)
                 )
             }
+            
+            // Padding for Tab Bar
+            Color.clear
+                .frame(height: 80)
+                .listRowSeparator(.hidden)
+                .listRowBackground(Color.clear)
         }
         .listStyle(.plain) // Use Plain style to remove grouped insets completely
         .navigationTitle("Appearance")
         .scrollContentBackground(.hidden)
         .background(currentTheme.background.ignoresSafeArea())
+        .onAppear {
+             // Check Lavender Haze Promo
+             if let lavender = Theme.all.first(where: { $0.id == "lavenderHaze" }) {
+                 let (isLocked, _) = checkLockStatus(for: lavender)
+                 if isLocked {
+                      // Slight delay for better UX
+                      DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                          showInvitePromo = true
+                      }
+                 }
+             }
+        }
+        .sheet(isPresented: $showInvitePromo) {
+            ThemePromoSheet(theme: Theme.lavenderHaze, currentTheme: currentTheme)
+                .presentationDetents([.medium])
+        }
+        .sheet(isPresented: $showLoginSheet) {
+            LoginView()
+        }
     }
-
+    
     private func themeSwatch(for theme: Theme) -> some View {
         HStack(spacing: -6) {
             Circle().fill(theme.primary).frame(width: 24, height: 24)
@@ -226,5 +261,179 @@ struct ThemePreviewSheet: View {
         .navigationBarTitleDisplayMode(.inline)
         // Dynamically adjust nav bar text color (White for Dark themes, Black for Light themes)
         .preferredColorScheme(theme.isDark ? .dark : .light)
+    }
+}
+
+// MARK: - Promo Sheet
+struct ThemePromoSheet: View {
+    let theme: Theme // The Locked Theme
+    let currentTheme: Theme // For styling context (or use the Locked Theme's style?)
+    @Environment(\.dismiss) private var dismiss
+    @State private var hasCopied = false
+    @State private var showLoginSheet = false // For local handling if needed
+    
+    var body: some View {
+        ZStack {
+            theme.background.ignoresSafeArea()
+            
+            if !AuthManager.shared.isAuthenticated {
+                // GUEST STATE
+                VStack(spacing: 24) {
+                    Spacer()
+                    
+                    Image(systemName: "lock.circle.fill")
+                        .font(.system(size: 70))
+                        .foregroundStyle(theme.secondary)
+                    
+                    Text("Unlock More Themes")
+                        .font(.title2.bold())
+                        .foregroundStyle(theme.primary)
+                    
+                    Text("Sign in to unlock exclusive themes like \(theme.name), track your streaks, and more!")
+                        .font(.body)
+                        .foregroundStyle(theme.secondary)
+                        .multilineTextAlignment(.center)
+                        .padding(.horizontal)
+                    
+                    Button {
+                        // We need to trigger the parent to show login, OR show it here.
+                        // Since this is a sheet, presenting another sheet on top is fine.
+                        showLoginSheet = true
+                    } label: {
+                        Text("Sign In Now")
+                            .font(.headline)
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding()
+                            .background(theme.accent)
+                            .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    
+                    Button("Close") { dismiss() }
+                        .foregroundStyle(theme.secondary)
+                    
+                    Spacer()
+                }
+                .sheet(isPresented: $showLoginSheet) {
+                    LoginView()
+                }
+                
+            } else {
+                // AUTHENTICATED STATE
+                VStack(spacing: 24) {
+                    // Header
+                    VStack(spacing: 8) {
+                        Image(systemName: "sparkles")
+                            .font(.system(size: 50))
+                            .foregroundStyle(theme.accent)
+                            .symbolEffect(.bounce.up, options: .repeating)
+                        
+                        Text("Unlock \(theme.name)")
+                            .font(.title2.bold())
+                            .foregroundStyle(theme.primary)
+                        
+                        Text("Invite 1 friend to unlock this exclusive theme!")
+                            .font(.subheadline)
+                            .foregroundStyle(theme.secondary)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal)
+                    }
+                    .padding(.top, 32)
+                    
+                    // Instructions Box
+                    VStack(alignment: .leading, spacing: 12) {
+                        Text("How to Unlock:")
+                            .font(.headline)
+                            .foregroundStyle(theme.primary)
+                        
+                        InstructionRow(number: "1", text: "Ask a friend to download W Reminder.", theme: theme)
+                        InstructionRow(number: "2", text: "They go to Settings > Enter Code.", theme: theme)
+                        InstructionRow(number: "3", text: "They enter your code below.", theme: theme)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(theme.isDark ? 0.05 : 0.4))
+                    .cornerRadius(16)
+                    .padding(.horizontal)
+
+                    // Invite Code Box
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Your Invite Code")
+                            .font(.caption.bold())
+                            .foregroundStyle(theme.secondary)
+                            .textCase(.uppercase)
+                        
+                        HStack {
+                            Text(AuthManager.shared.profile?.inviteCode ?? "LOADING")
+                                .font(.title3.monospaced().bold())
+                                .foregroundStyle(theme.primary)
+                            
+                            Spacer()
+                            
+                            Button {
+                                if let code = AuthManager.shared.profile?.inviteCode {
+                                    UIPasteboard.general.string = code
+                                    let generator = UINotificationFeedbackGenerator()
+                                    generator.notificationOccurred(.success)
+                                    withAnimation { hasCopied = true }
+                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                        withAnimation { hasCopied = false }
+                                    }
+                                }
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Image(systemName: hasCopied ? "checkmark" : "doc.on.doc")
+                                    Text(hasCopied ? "Copied" : "Copy")
+                                }
+                                .font(.callout.bold())
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(theme.accent)
+                                .foregroundStyle(theme.isDark ? .black : .white)
+                                .clipShape(Capsule())
+                            }
+                        }
+                        .padding()
+                        .background(Color.white.opacity(theme.isDark ? 0.1 : 0.5))
+                        .cornerRadius(12)
+                    }
+                    .padding(.horizontal)
+                    
+                    Spacer()
+                    
+                    Button("Maybe Later") {
+                        dismiss()
+                    }
+                    .font(.headline)
+                    .foregroundStyle(theme.secondary)
+                    .padding(.bottom, 20)
+                }
+            }
+        }
+        .presentationDetents([.medium, .large]) // Allow expansion
+    }
+}
+
+struct InstructionRow: View {
+    let number: String
+    let text: String
+    let theme: Theme
+    
+    var body: some View {
+        HStack(alignment: .top, spacing: 12) {
+            Circle()
+                .fill(theme.accent.opacity(0.2))
+                .frame(width: 24, height: 24)
+                .overlay(
+                    Text(number)
+                        .font(.caption.bold())
+                        .foregroundStyle(theme.accent)
+                )
+            
+            Text(text)
+                .font(.subheadline)
+                .foregroundStyle(theme.primary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }

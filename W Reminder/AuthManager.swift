@@ -19,10 +19,17 @@ final class AuthManager {
     var profile: Profile?
     
     // Auth State
-    var isAuthenticated: Bool { session != nil }
+    var isAuthenticated: Bool {
+        session != nil
+    }
     var isLoading = false
     var errorMessage: String?
     var successMessage: String?
+    
+    // Flag to ensure we only apply cloud preferences (Theme/Sound) once on startup
+    // This prevents "fighting" or flickering if the cloud echoes back an update while we are changing it locally.
+    private var hasSyncedPreferences = false 
+    
     var shouldShowWelcomeBack = false    
     private init() {
         self.client = SupabaseClient(
@@ -66,7 +73,6 @@ final class AuthManager {
     
     func subscribeToProfileUpdates() async {
         guard let userId = user?.id else { return }
-        print("🔌 Setting up Realtime for user: \(userId)")
         
         let channel = client.channel("public:profiles:\(userId)")
         
@@ -79,11 +85,9 @@ final class AuthManager {
         )
         
         await channel.subscribe()
-        print("✅ Realtime Subscribed!")
         
         Task {
             for await _ in subscription {
-                print("⚡️ REALTIME EVENT RECEIVED: Profile updated!")
                 await fetchProfile()
             }
         }
@@ -188,15 +192,19 @@ final class AuthManager {
                     )
                 }
                 
-                // Apply preferences
-                if let themeId = profile.themeId {
-                    UserDefaults.standard.set(themeId, forKey: "selectedThemeId")
-                }
-                if let sound = profile.notificationSound {
-                    UserDefaults.standard.set(sound, forKey: "notificationSound")
+                // Apply preferences (Only once on startup to prevent flickering/fighting)
+                if !self.hasSyncedPreferences {
+                    if let themeId = profile.themeId {
+                         UserDefaults.standard.set(themeId, forKey: "selectedThemeId")
+                    }
+                    if let sound = profile.notificationSound {
+                        UserDefaults.standard.set(sound, forKey: "notificationSound")
+                    }
+                    self.hasSyncedPreferences = true
                 }
                 
-                ThemeManager.shared.checkUnlocks() // Check theme unlocks
+                // Trigger Unlocks Check
+                ThemeManager.shared.checkUnlocks() // This toggles showUnlockCelebration
             }
         } catch {
             print("Error fetching profile: \(error)")
@@ -259,6 +267,11 @@ final class AuthManager {
     
     func updateSettings(themeId: String, sound: String) async {
         guard let userId = user?.id else { return }
+        
+        // Mark this as a local update so we ignore the Realtime echo
+        await MainActor.run {
+            ThemeSelectionManager.shared.lastLocalUpdate = Date()
+        }
         
         let update = ProfileUpdate(
             themeId: themeId,

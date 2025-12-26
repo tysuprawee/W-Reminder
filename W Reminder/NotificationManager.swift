@@ -119,6 +119,15 @@ final class NotificationManager: NSObject, UNUserNotificationCenterDelegate {
             content.categoryIdentifier = self.categoryID
             content.userInfo = userInfo
             
+            // "Alarm-like" behavior
+            if #available(iOS 15.0, *) {
+                // Check user preference (Default True)
+                let isTimeSensitive = UserDefaults.standard.object(forKey: "isTimeSensitiveNotificationsEnabled") as? Bool ?? true
+                if isTimeSensitive {
+                    content.interruptionLevel = .timeSensitive
+                }
+            }
+            
             let triggerDate = Calendar.current.dateComponents(
                 [.year, .month, .day, .hour, .minute],
                 from: date

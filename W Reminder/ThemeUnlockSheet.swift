@@ -5,6 +5,7 @@ struct ThemeUnlockSheet: View {
     let theme: Theme // Current theme for styling
     let newTheme: Theme
     @Environment(\.dismiss) var dismiss
+    @State private var showLoginSheet = false
     
     var body: some View {
         ZStack {
@@ -42,9 +43,14 @@ struct ThemeUnlockSheet: View {
                 // Actions
                 VStack(spacing: 12) {
                     Button {
-                        // Switch immediately?
-                        ThemeSelectionManager.shared.selectTheme(id: newTheme.id)
-                        dismiss()
+                        if AuthManager.shared.isAuthenticated {
+                            // Switch immediately
+                            ThemeSelectionManager.shared.selectTheme(id: newTheme.id)
+                            dismiss()
+                        } else {
+                            // Require Login
+                            showLoginSheet = true
+                        }
                     } label: {
                         Text("Use \(newTheme.name)")
                             .font(.headline)
@@ -65,6 +71,9 @@ struct ThemeUnlockSheet: View {
                 .padding(.bottom)
             }
             .padding(.top, 40)
+        }
+        .sheet(isPresented: $showLoginSheet) {
+            LoginView()
         }
     }
 }
