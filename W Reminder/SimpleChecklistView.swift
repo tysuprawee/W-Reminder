@@ -243,20 +243,11 @@ struct SimpleChecklistView: View {
             
             // --- Sheets & Modals (Attached to ZStack/NavStack) ---
             
-            // 1. Smart Input
             .sheet(isPresented: $showingSmartInput) {
                 SmartTaskInputSheet(
                     theme: theme,
-                    onCommit: { title, notes, date, recurrence in
-                        save(
-                            original: nil,
-                            title: title,
-                            notes: notes,
-                            dueDate: date ?? (recurrence != nil ? Date() : nil),
-                            remind: date != nil || recurrence != nil,
-                            tags: [],
-                            recurrenceRule: recurrence
-                        )
+                    onCommit: { title, notes, date, recurrence, tagName in
+                        handleSmartInput(title: title, notes: notes, date: date, recurrence: recurrence, tagName: tagName)
                     }
                 )
                 .presentationDetents([.fraction(0.40)])
@@ -344,6 +335,49 @@ struct SimpleChecklistView: View {
         .toolbar(.hidden, for: .navigationBar) // Hide standard navigation bar
         .background(theme.background.ignoresSafeArea())
     } // End Body
+
+    private func handleSmartInput(title: String, notes: String?, date: Date?, recurrence: String?, tagName: String?) {
+        // Auto-Tag Logic
+        var finalTags: [Tag] = []
+        if let name = tagName {
+            // Note: tags is a Query, accessing directly matches against in-memory cache/DB
+            if let existing = tags.first(where: { $0.name.localizedCaseInsensitiveCompare(name) == .orderedSame }) {
+                finalTags.append(existing)
+            } else {
+                // Create new Tag with Auto-Color
+                let color = colorForTag(name)
+                let newTag = Tag(name: name, colorHex: color, isTextWhite: true)
+                modelContext.insert(newTag)
+                finalTags.append(newTag)
+            }
+        }
+        
+        save(
+            original: nil,
+            title: title,
+            notes: notes,
+            dueDate: date ?? (recurrence != nil ? Date() : nil),
+            remind: date != nil || recurrence != nil,
+            tags: finalTags,
+            recurrenceRule: recurrence
+        )
+    }
+
+    private func colorForTag(_ name: String) -> String {
+        switch name.lowercased() {
+        case "work": return "#007AFF" // Blue
+        case "schol", "study", "education": return "#FF9500" // Orange
+        case "health", "fitness", "gym": return "#34C759" // Green
+        case "finance", "money", "utilities": return "#30B0C7" // Teal
+        case "home", "house", "chores": return "#AF52DE" // Purple
+        case "personal", "social", "life": return "#FF2D55" // Pink
+        case "travel", "trip": return "#5856D6" // Indigo
+        case "shopping", "groceries", "buy": return "#FFCC00" // Yellow
+        case "family", "love": return "#FF3B30" // Red
+        case "entertainment", "movie", "fun": return "#5AC8FA" // Light Blue
+        default: return "#8E8E93" // Default Gray
+        }
+    }
 
     private func save(
         original: SimpleChecklist?,

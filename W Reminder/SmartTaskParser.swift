@@ -20,16 +20,21 @@ struct SmartTaskParser {
         let notes: String?
         let dueDate: Date?
         let recurrenceRule: String?
+        let detectedTag: String? // New field
     }
 
-    static func parse(text: String, now: Date = Date()) -> ParsedResult {
+    static func parse(text: String, now: Date = Date(), existingTags: [String] = []) -> ParsedResult { // Signature update
         let original = text.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !original.isEmpty else {
-            return ParsedResult(title: "", notes: nil, dueDate: nil, recurrenceRule: nil)
+            return ParsedResult(title: "", notes: nil, dueDate: nil, recurrenceRule: nil, detectedTag: nil)
         }
 
         // 0) Preprocess
         var working = preprocess(original)
+        
+        // 0.2) Extract Explicit Tags (#Tag)
+        var explicitTag: String? = nil
+        extractExplicitTag(&working, foundTag: &explicitTag)
         
         // 0.5) Extract Recurrence (e.g. "every month")
         let recurrence = extractRecurrenceRule(&working)
@@ -55,12 +60,19 @@ struct SmartTaskParser {
 
         // 5) Final Polish
         let finalTitle = polishTitle(title)
+        
+        // 6) Smart Tag Detection (Only if no explicit tag)
+        var finalTag = explicitTag
+        if finalTag == nil && !finalTitle.isEmpty {
+             finalTag = SmartClassifier.suggestTag(for: finalTitle, existingTags: existingTags)
+        }
 
         return ParsedResult(
             title: finalTitle,
             notes: notes,
             dueDate: dueDate,
-            recurrenceRule: recurrence
+            recurrenceRule: recurrence,
+            detectedTag: finalTag
         )
     }
 } // Restore missing struct closing brace
@@ -106,8 +118,8 @@ private extension SmartTaskParser {
             (#"(?i)\bthis weekend\b"#, "Saturday"),
             (#"(?i)\bnext weekend\b"#, "next Saturday"),
             
-            // "at 5" -> "at 5:00" (if not followed by : or am/pm) to help NSDataDetector
-            (#"(?i)\bat (\d{1,2})(?!\s?(:|am|pm))"#, "at $1:00"),
+            // "at 5" -> "at 5:00" (if not followed by : or . or am/pm) to help NSDataDetector
+            (#"(?i)\bat (\d{1,2})(?!\s?(:|\.|am|pm))"#, "at $1:00"),
             
             // Normalize "at 8.30" -> "at 8:30"
             (#"(?i)\bat (\d{1,2})\.(\d{2})\b"#, "at $1:$2"),
@@ -121,6 +133,11 @@ private extension SmartTaskParser {
             // 5p / 5a -> 5 pm / 5 am
             (#"(?i)\b(\d{1,2})p\b"#, "$1 pm"),
             (#"(?i)\b(\d{1,2})a\b"#, "$1 am"),
+
+            // "around 5" -> "at 5:00"
+            (#"(?i)\baround (\d{1,2})(?!\s?(:|\.|am|pm))"#, "at $1:00"),
+            // "around 5pm" -> "at 5pm" (let subsequent normalizer handle the rest)
+            (#"(?i)\baround (\d+)"#, "at $1"),
         ]
 
         for (pattern, replacement) in rules {
@@ -133,6 +150,24 @@ private extension SmartTaskParser {
         // clean spaces after replacements
         s = s.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
         return s.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+    static func extractExplicitTag(_ text: inout String, foundTag: inout String?) {
+        // Match #TagName (simple alphanumeric)
+        let pattern = "#(\\w+)"
+        guard let re = try? NSRegularExpression(pattern: pattern) else { return }
+        
+        let range = NSRange(text.startIndex..<text.endIndex, in: text)
+        if let match = re.firstMatch(in: text, range: range),
+           let tagRange = Range(match.range(at: 1), in: text),
+           let fullRange = Range(match.range, in: text) {
+            
+            foundTag = String(text[tagRange])
+            
+            // Remove from text
+            text.removeSubrange(fullRange)
+            text = text.replacingOccurrences(of: "\\s+", with: " ", options: .regularExpression)
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+        }
     }
 }
 
