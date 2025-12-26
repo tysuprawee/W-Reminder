@@ -321,93 +321,97 @@ struct ThemePromoSheet: View {
                 
             } else {
                 // AUTHENTICATED STATE
-                VStack(spacing: 24) {
-                    // Header
-                    VStack(spacing: 8) {
-                        Image(systemName: "sparkles")
-                            .font(.system(size: 50))
-                            .foregroundStyle(theme.accent)
-                            .symbolEffect(.bounce.up, options: .repeating)
-                        
-                        Text("Unlock \(theme.name)")
-                            .font(.title2.bold())
-                            .foregroundStyle(theme.primary)
-                        
-                        Text("Invite 1 friend to unlock this exclusive theme!")
-                            .font(.subheadline)
-                            .foregroundStyle(theme.secondary)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal)
-                    }
-                    .padding(.top, 32)
-                    
-                    // Instructions Box
-                    VStack(alignment: .leading, spacing: 12) {
-                        Text("How to Unlock:")
-                            .font(.headline)
-                            .foregroundStyle(theme.primary)
-                        
-                        InstructionRow(number: "1", text: "Ask a friend to download W Reminder.", theme: theme)
-                        InstructionRow(number: "2", text: "They go to Settings > Enter Code.", theme: theme)
-                        InstructionRow(number: "3", text: "They enter your code below.", theme: theme)
-                    }
-                    .padding()
-                    .background(Color.white.opacity(theme.isDark ? 0.05 : 0.4))
-                    .cornerRadius(16)
-                    .padding(.horizontal)
-
-                    // Invite Code Box
-                    VStack(alignment: .leading, spacing: 8) {
-                        Text("Your Invite Code")
-                            .font(.caption.bold())
-                            .foregroundStyle(theme.secondary)
-                            .textCase(.uppercase)
-                        
-                        HStack {
-                            Text(AuthManager.shared.profile?.inviteCode ?? "LOADING")
-                                .font(.title3.monospaced().bold())
+                ScrollView { // Added ScrollView
+                    VStack(spacing: 24) {
+                        // Header
+                        VStack(spacing: 8) {
+                            Image(systemName: "sparkles")
+                                .font(.system(size: 50))
+                                .foregroundStyle(theme.accent)
+                                .symbolEffect(.bounce.up, options: .repeating)
+                            
+                            Text("Unlock \(theme.name)")
+                                .font(.title2.bold())
                                 .foregroundStyle(theme.primary)
                             
-                            Spacer()
+                            Text("Invite 1 friend to unlock this exclusive theme!")
+                                .font(.subheadline)
+                                .foregroundStyle(theme.secondary)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal)
+                        }
+                        .padding(.top, 32)
+                        
+                        // Instructions Box
+                        VStack(alignment: .leading, spacing: 12) {
+                            Text("How to Unlock:")
+                                .font(.headline)
+                                .foregroundStyle(theme.primary)
                             
-                            Button {
-                                if let code = AuthManager.shared.profile?.inviteCode {
-                                    UIPasteboard.general.string = code
-                                    let generator = UINotificationFeedbackGenerator()
-                                    generator.notificationOccurred(.success)
-                                    withAnimation { hasCopied = true }
-                                    DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
-                                        withAnimation { hasCopied = false }
-                                    }
-                                }
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Image(systemName: hasCopied ? "checkmark" : "doc.on.doc")
-                                    Text(hasCopied ? "Copied" : "Copy")
-                                }
-                                .font(.callout.bold())
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background(theme.accent)
-                                .foregroundStyle(theme.isDark ? .black : .white)
-                                .clipShape(Capsule())
-                            }
+                            InstructionRow(number: "1", text: "Ask a friend to download W Reminder.", theme: theme)
+                            InstructionRow(number: "2", text: "They go to Settings > Enter Code.", theme: theme)
+                            InstructionRow(number: "3", text: "They enter your code below.", theme: theme)
                         }
                         .padding()
-                        .background(Color.white.opacity(theme.isDark ? 0.1 : 0.5))
-                        .cornerRadius(12)
+                        .background(Color.white.opacity(theme.isDark ? 0.05 : 0.4))
+                        .cornerRadius(16)
+                        .padding(.horizontal)
+    
+                        // Invite Code Box
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text("Your Invite Code")
+                                .font(.caption.bold())
+                                .foregroundStyle(theme.secondary)
+                                .textCase(.uppercase)
+                            
+                            HStack {
+                                Text(AuthManager.shared.profile?.inviteCode ?? "LOADING")
+                                    .font(.title3.monospaced().bold())
+                                    .foregroundStyle(theme.primary)
+                                
+                                Spacer()
+                                
+                                Button {
+                                    if let code = AuthManager.shared.profile?.inviteCode {
+                                        UIPasteboard.general.string = code
+                                        let generator = UINotificationFeedbackGenerator()
+                                        generator.notificationOccurred(.success)
+                                        withAnimation { hasCopied = true }
+                                        DispatchQueue.main.asyncAfter(deadline: .now() + 2) {
+                                            withAnimation { hasCopied = false }
+                                        }
+                                    }
+                                } label: {
+                                    HStack(spacing: 6) {
+                                        Image(systemName: hasCopied ? "checkmark" : "doc.on.doc")
+                                        Text(hasCopied ? "Copied" : "Copy")
+                                    }
+                                    .font(.callout.bold())
+                                    .padding(.horizontal, 16)
+                                    .padding(.vertical, 8)
+                                    .background(theme.accent)
+                                    .foregroundStyle(theme.isDark ? .black : .white)
+                                    .clipShape(Capsule())
+                                }
+                            }
+                            .padding()
+                            .background(Color.white.opacity(theme.isDark ? 0.1 : 0.5))
+                            .cornerRadius(12)
+                        }
+                        .padding(.horizontal)
+                        
+                        // Spacer not needed in ScrollView
+                        
+                        Button("Maybe Later") {
+                            dismiss()
+                        }
+                        .font(.headline)
+                        .foregroundStyle(theme.secondary)
+                        .padding(.bottom, 40) // Increased padding for safe area
+                        .padding(.top, 10)
                     }
-                    .padding(.horizontal)
-                    
-                    Spacer()
-                    
-                    Button("Maybe Later") {
-                        dismiss()
-                    }
-                    .font(.headline)
-                    .foregroundStyle(theme.secondary)
-                    .padding(.bottom, 20)
                 }
+                .scrollIndicators(.hidden)
             }
         }
         .presentationDetents([.medium, .large]) // Allow expansion

@@ -21,7 +21,8 @@ struct SmartClassifier {
         // 1. Extract the "Core" Noun/Verb from the text to vectorize
         // (e.g., "Buy Milk" -> "Milk", "Call Mom" -> "Call")
         let keywords = extractKeywords(from: text)
-        guard !keywords.isEmpty else { return nil }
+        guard !keywords.isEmpty else { return "Personal" } // Default fallback
+        
         
         var bestCandidate: String?
         var bestDistance: Double = 1.0 // 0.0 = identical, 2.0 = opposite
@@ -44,15 +45,13 @@ struct SmartClassifier {
             }
         }
         
-        // Threshold: If existing match is good (< 0.5), return it.
-        // Otherwise, suggest a NEW generic category based on the keyword.
-        if bestDistance < 0.6 {
+        // Limit: If existing match is very good (< 0.75), trust it to avoid clutter.
+        if bestDistance < 0.75 {
             return bestCandidate
-        } else {
-            // No good existing tag. Suggest a generic one based on the keyword's category.
-            // Map keywords to "Base Categories"
-            return suggestNewCategory(for: keywords, embedding: embedding)
         }
+        
+        // Otherwise, find the BEST Universal Category (even if weak)
+        return suggestNewCategory(for: keywords, embedding: embedding)
     }
     
     private static func extractKeywords(from text: String) -> [String] {
@@ -90,7 +89,8 @@ struct SmartClassifier {
             }
         }
         
-        // Relaxed threshold to 0.85 to suggest categories even more aggressively
-        return bestDist < 0.85 ? bestCat : nil
+        // Always return the best category found.
+        // If nothing matches well (extremely unlikely), default to "Personal"
+        return bestCat ?? "Personal"
     }
 }
